@@ -1,0 +1,10 @@
+{
+  "evaluationContext": {
+    "key": "a20b1cd5-7165-4e02-a279-c0c8b90a8912",
+    "custom": {
+      "custom1": "value1",
+      "custom2": "value2"
+    }
+  },
+  "defaultValue": false
+}

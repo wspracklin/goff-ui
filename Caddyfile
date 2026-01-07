@@ -1,0 +1,64 @@
+# Caddyfile for GO Feature Flag UI
+# Automatic HTTPS with Let's Encrypt
+
+# Replace with your domain, or use :80 for HTTP only
+{$DOMAIN:localhost} {
+    # Frontend UI
+    handle /* {
+        reverse_proxy goff-ui:3000
+    }
+
+    # Relay Proxy API (for SDKs)
+    handle /v1/* {
+        reverse_proxy relay-proxy:1031
+    }
+
+    # Relay Proxy health/info
+    handle /health {
+        reverse_proxy relay-proxy:1031
+    }
+
+    handle /info {
+        reverse_proxy relay-proxy:1031
+    }
+
+    # Flag Manager API
+    handle /api/* {
+        reverse_proxy flag-manager-api:8095
+    }
+
+    # Enable compression
+    encode gzip
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}
+
+# HTTP-only fallback (for development or if you don't have a domain)
+:80 {
+    handle /* {
+        reverse_proxy goff-ui:3000
+    }
+
+    handle /v1/* {
+        reverse_proxy relay-proxy:1031
+    }
+
+    handle /health {
+        reverse_proxy relay-proxy:1031
+    }
+
+    handle /info {
+        reverse_proxy relay-proxy:1031
+    }
+
+    handle /api/* {
+        reverse_proxy flag-manager-api:8095
+    }
+
+    encode gzip
+}

@@ -1,0 +1,91 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Use the base manifests
+resources:
+  - ../base
+
+# Local-specific patches
+patches:
+  # Reduce replicas to 1 for local development
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+
+  # Use NodePort for local access (no ingress controller needed)
+  - patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30600
+    target:
+      kind: Service
+      name: goff-ui
+
+  - patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 31031
+    target:
+      kind: Service
+      name: go-feature-flag
+
+  - patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30895
+    target:
+      kind: Service
+      name: flag-manager-api
+
+  # Remove resource limits for local (optional, comment out if you want limits)
+  - patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/requests
+    target:
+      kind: Deployment
+
+  # Enable dev mode in frontend
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: FLAG_MANAGER_API_URL
+            value: "http://flag-manager-api:8095"
+          - name: RELAY_PROXY_URL
+            value: "http://go-feature-flag:1031"
+          - name: DEV_MODE
+            value: "true"
+          - name: AUTH_SECRET
+            value: "local-dev-secret-not-for-production"
+          - name: AUTH_URL
+            value: "http://localhost:4000"
+    target:
+      kind: Deployment
+      name: goff-ui
+
+# Don't include ingress for local (use NodePort instead)
+patchesStrategicMerge:
+  - delete-ingress.yaml
+
+# Use local images
+images:
+  - name: your-registry/flag-manager-api
+    newName: flag-manager-api
+    newTag: local
+  - name: your-registry/goff-ui
+    newName: goff-ui
+    newTag: local

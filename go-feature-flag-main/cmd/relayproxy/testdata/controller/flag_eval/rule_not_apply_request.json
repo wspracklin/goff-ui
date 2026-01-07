@@ -1,0 +1,12 @@
+{
+  "evaluationContext": {
+    "key": "random-key",
+    "custom": {
+      "custom1": "value1",
+      "custom2": "value2"
+    }
+  },
+  "defaultValue": {
+    "test4": "test"
+  }
+}

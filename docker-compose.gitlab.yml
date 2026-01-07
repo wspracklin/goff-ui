@@ -1,0 +1,85 @@
+# Docker Compose for GitLab Git Integration
+# Usage: docker-compose -f docker-compose.gitlab.yml up -d
+#
+# Required environment variables (set in .env or shell):
+#   GITLAB_URL         - e.g., https://gitlab.com or https://gitlab.your-domain.com
+#   GITLAB_PROJECT_ID  - Project path (group/project) or numeric ID
+#   GITLAB_TOKEN       - Personal Access Token with api and write_repository scopes
+#
+# The relay proxy will pull flags directly from GitLab (native retriever).
+# Flag changes via the UI will create Merge Requests in GitLab.
+
+version: '3.8'
+
+services:
+  # Flag Manager API with GitLab integration
+  flag-manager-api:
+    build: ./flag-manager-api-simple
+    ports:
+      - "8095:8095"
+    volumes:
+      - flags-data:/data/flags
+    environment:
+      - PORT=8095
+      - FLAGS_DIR=/data/flags
+      - RELAY_PROXY_URL=http://relay-proxy:1031
+      # GitLab Git Provider
+      - GIT_PROVIDER=gitlab
+      - GITLAB_URL=${GITLAB_URL}
+      - GITLAB_PROJECT_ID=${GITLAB_PROJECT_ID}
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
+      - GIT_BASE_BRANCH=${GIT_BASE_BRANCH:-main}
+      - GIT_FLAGS_PATH=${GIT_FLAGS_PATH:-flags.yaml}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8095/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # GO Feature Flag Relay Proxy - uses native GitLab retriever
+  relay-proxy:
+    image: gofeatureflag/go-feature-flag:latest
+    ports:
+      - "1031:1031"
+    volumes:
+      - ./relay-proxy-configs/gitlab.yaml:/goff/goff-proxy.yaml:ro
+    environment:
+      - GITLAB_URL=${GITLAB_URL}
+      - GITLAB_PROJECT_PATH=${GITLAB_PROJECT_ID}
+      - GITLAB_FLAGS_PATH=${GIT_FLAGS_PATH:-flags.yaml}
+      - GITLAB_BRANCH=${GIT_BASE_BRANCH:-main}
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
+    depends_on:
+      - flag-manager-api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:1031/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend UI
+  goff-ui:
+    build: ./goff-ui
+    ports:
+      - "4000:4000"
+    environment:
+      - FLAG_MANAGER_API_URL=http://flag-manager-api:8095
+      - NEXT_PUBLIC_FLAG_MANAGER_API_URL=http://localhost:8095
+      - RELAY_PROXY_URL=http://relay-proxy:1031
+      - DEV_MODE=false
+      - AUTH_SECRET=${AUTH_SECRET:-change-this-in-production}
+      - AUTH_URL=${AUTH_URL:-http://localhost:4000}
+      # Keycloak (optional)
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
+      - KEYCLOAK_URL=${KEYCLOAK_URL:-}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-}
+    depends_on:
+      - flag-manager-api
+      - relay-proxy
+    restart: unless-stopped
+
+volumes:
+  flags-data:

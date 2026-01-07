@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flag-manager-api
+  namespace: feature-flags
+  labels:
+    app.kubernetes.io/name: flag-manager-api
+    app.kubernetes.io/component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: flag-manager-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: flag-manager-api
+    spec:
+      serviceAccountName: flag-manager
+      containers:
+        - name: flag-manager-api
+          image: your-registry/flag-manager-api:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8095
+              protocol: TCP
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CONFIGMAP_NAME
+              value: "feature-flags"
+            - name: RELAY_PROXY_URL
+              value: "http://go-feature-flag:1031"
+            - name: PORT
+              value: "8095"
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flag-manager-secrets
+                  key: admin-api-key
+                  optional: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      securityContext:
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flag-manager-api
+  namespace: feature-flags
+  labels:
+    app.kubernetes.io/name: flag-manager-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8095
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: flag-manager-api

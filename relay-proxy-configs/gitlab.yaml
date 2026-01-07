@@ -1,0 +1,16 @@
+# GitLab Retriever - Native GO Feature Flag integration
+listen: 1031
+host: 0.0.0.0
+
+retriever:
+  kind: gitlab
+  baseUrl: ${GITLAB_URL}
+  repositorySlug: ${GITLAB_PROJECT_PATH}  # e.g., "group/project"
+  path: ${GITLAB_FLAGS_PATH}              # e.g., "flags/flags.yaml"
+  branch: ${GITLAB_BRANCH:-main}
+  token: ${GITLAB_TOKEN}
+  timeout: 10000
+
+pollingInterval: 60000  # 60s to respect rate limits
+restApiTimeout: 5000
+enableAdmin: true

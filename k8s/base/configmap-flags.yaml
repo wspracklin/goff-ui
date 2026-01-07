@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feature-flags
+  namespace: feature-flags
+  labels:
+    app.kubernetes.io/name: feature-flags
+    app.kubernetes.io/component: flag-storage
+data:
+  # Example project - each project gets its own key ending in .yaml
+  default.yaml: |
+    # Default project flags
+    example-flag:
+      variations:
+        enabled: true
+        disabled: false
+      defaultRule:
+        variation: disabled
+      disable: false
+      trackEvents: true
+      version: "1.0.0"
+      metadata:
+        description: "Example feature flag"

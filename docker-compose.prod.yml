@@ -1,0 +1,111 @@
+version: '3.8'
+
+# Production Docker Compose for AWS EC2
+# Optimized for t3.micro (1 vCPU, 1GB RAM)
+
+services:
+  flag-manager-api:
+    build: ./flag-manager-api-simple
+    restart: always
+    volumes:
+      - flags-data:/data/flags
+    environment:
+      - PORT=8095
+      - FLAGS_DIR=/data/flags
+      - RELAY_PROXY_URL=http://relay-proxy:1031
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8095/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - goff-network
+
+  relay-proxy:
+    image: gofeatureflag/go-feature-flag:latest
+    restart: always
+    volumes:
+      - ./relay-proxy-config.yaml:/goff/goff-proxy.yaml:ro
+    depends_on:
+      flag-manager-api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:1031/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - goff-network
+
+  goff-ui:
+    build:
+      context: ./goff-ui
+      args:
+        - NODE_ENV=production
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - FLAG_MANAGER_API_URL=http://flag-manager-api:8095
+      - RELAY_PROXY_URL=http://relay-proxy:1031
+      - DEV_MODE=true  # Set to false and configure Keycloak for auth
+      - AUTH_SECRET=${AUTH_SECRET:-change-me-in-production}
+    depends_on:
+      flag-manager-api:
+        condition: service_healthy
+      relay-proxy:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    networks:
+      - goff-network
+
+  # Caddy for automatic HTTPS (simpler than nginx + certbot)
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - goff-ui
+      - flag-manager-api
+      - relay-proxy
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+    networks:
+      - goff-network
+
+volumes:
+  flags-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  goff-network:
+    driver: bridge

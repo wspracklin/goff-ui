@@ -1,0 +1,13 @@
+{
+  "evaluationContext": {
+    "key": "random-key-ssss1",
+    "custom": {
+      "anonymous": true,
+      "custom1": "value1",
+      "custom2": "value2"
+    }
+  },
+  "defaultValue": {
+    "test123": "test"
+  }
+}

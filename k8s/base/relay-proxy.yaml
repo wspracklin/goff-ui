@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relay-proxy-config
+  namespace: feature-flags
+  labels:
+    app.kubernetes.io/name: go-feature-flag
+data:
+  goff-proxy.yaml: |
+    # GO Feature Flag Relay Proxy Configuration
+    listen: 1031
+    host: 0.0.0.0
+
+    # Use HTTP retriever to fetch flags from Flag Manager API
+    # This ensures both frontend and relay proxy read from the same source
+    retriever:
+      kind: http
+      url: http://flag-manager-api:8095/api/flags/raw
+      method: GET
+      timeout: 10s
+
+    # Polling interval for flag updates
+    pollingInterval: 30s
+
+    # Enable the file exporter for debugging (optional)
+    # exporter:
+    #   kind: file
+    #   outputDir: /tmp/flags
+
+    # REST API configuration
+    restApiTimeout: 5s
+
+    # Enable admin API for manual refresh
+    enableAdmin: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-feature-flag
+  namespace: feature-flags
+  labels:
+    app.kubernetes.io/name: go-feature-flag
+    app.kubernetes.io/component: relay-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: go-feature-flag
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: go-feature-flag
+    spec:
+      containers:
+        - name: relay-proxy
+          image: gofeatureflag/go-feature-flag:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 1031
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /goff
+              readOnly: true
+          env:
+            # Admin API key for secure refresh endpoint
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flag-manager-secrets
+                  key: admin-api-key
+                  optional: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: config
+          configMap:
+            name: relay-proxy-config
+      securityContext:
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-feature-flag
+  namespace: feature-flags
+  labels:
+    app.kubernetes.io/name: go-feature-flag
+spec:
+  type: ClusterIP
+  ports:
+    - port: 1031
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: go-feature-flag

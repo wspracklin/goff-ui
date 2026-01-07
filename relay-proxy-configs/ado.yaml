@@ -1,0 +1,18 @@
+# Azure DevOps Git Retriever (via HTTP)
+# Fetches flags directly from ADO Git repository
+listen: 1031
+host: 0.0.0.0
+
+retriever:
+  kind: http
+  # ADO REST API to get raw file content
+  # Format: {org}/_apis/git/repositories/{repo}/items?path={path}&api-version=7.0
+  url: ${ADO_ORG_URL}/_apis/git/repositories/${ADO_REPOSITORY}/items?path=${ADO_FLAGS_PATH}&api-version=7.0
+  method: GET
+  headers:
+    Authorization: "Basic ${ADO_PAT_BASE64}"
+  timeout: 10000
+
+pollingInterval: 60000  # 60s to respect ADO rate limits
+restApiTimeout: 5000
+enableAdmin: true

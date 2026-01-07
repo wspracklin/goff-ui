@@ -1,0 +1,33 @@
+# GO Feature Flag Relay Proxy Configuration
+# Supports multiple retriever backends via environment variables
+
+listen: 1031
+host: 0.0.0.0
+
+# =============================================================================
+# Retriever Configuration
+# =============================================================================
+# The retriever is configured based on GIT_PROVIDER environment variable:
+#   - "ado" or "azure-devops": Azure DevOps Git repository
+#   - "gitlab": GitLab repository
+#   - "http" or unset: HTTP endpoint (Flag Manager API)
+#
+# For ADO: Set ADO_ORG_URL, ADO_PROJECT, ADO_REPOSITORY, ADO_PAT, ADO_FLAGS_PATH
+# For GitLab: Set GITLAB_URL, GITLAB_PROJECT_ID, GITLAB_TOKEN, GITLAB_FLAGS_PATH
+# For HTTP: Set FLAG_MANAGER_API_URL (default)
+# =============================================================================
+
+retriever:
+  kind: http
+  url: http://flag-manager-api:8095/api/flags/raw
+  method: GET
+  timeout: 10000
+
+# Poll for updates every 30 seconds
+pollingInterval: 30000
+
+# REST API timeout
+restApiTimeout: 5000
+
+# Enable admin API for manual refresh
+enableAdmin: true

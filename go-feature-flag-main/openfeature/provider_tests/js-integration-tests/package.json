@@ -1,0 +1,20 @@
+{
+  "name": "js-integration-tests",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --detectOpenHandles"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^30.2.0"
+  },
+  "dependencies": {
+    "@jest/globals": "^30.1.1",
+    "@openfeature/go-feature-flag-provider": "^1.0.5",
+    "@openfeature/server-sdk": "^1.19.2"
+  }
+}

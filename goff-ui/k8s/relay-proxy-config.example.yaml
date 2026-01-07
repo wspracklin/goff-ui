@@ -1,0 +1,94 @@
+# GO Feature Flag Relay Proxy Configuration
+# This example shows how to configure the relay proxy to fetch flags from Azure DevOps
+
+# Listen on all interfaces
+listen: 0.0.0.0
+listenPort: 1031
+
+# Polling interval to check for flag updates (in ms)
+pollingInterval: 60000
+
+# Enable debug logging
+debug: false
+
+# Retrievers - one per project (FlagSet)
+# The relay proxy will poll each retriever for flag updates
+retrievers:
+  # Example project 1
+  - kind: http
+    url: https://ado.your-domain.com/org/project/_apis/git/repositories/feature-flags/items?path=/projects/project-alpha/flags.yaml&api-version=7.0
+    headers:
+      Authorization: "Basic YOUR_BASE64_ENCODED_PAT"
+    # FlagSet name - used to namespace flags per project
+    # Clients can request flags for specific projects using the X-GOFF-FLAGSET header
+    # or by passing the flagset parameter in API calls
+    # Note: FlagSet name should match the project folder name
+
+  # Example project 2
+  - kind: http
+    url: https://ado.your-domain.com/org/project/_apis/git/repositories/feature-flags/items?path=/projects/project-beta/flags.yaml&api-version=7.0
+    headers:
+      Authorization: "Basic YOUR_BASE64_ENCODED_PAT"
+
+# Alternative: Use a single retriever with glob pattern (if supported)
+# retriever:
+#   kind: http
+#   url: https://ado.your-domain.com/org/project/_apis/git/repositories/feature-flags/items
+#   headers:
+#     Authorization: "Basic YOUR_BASE64_ENCODED_PAT"
+
+# WebSocket configuration for real-time updates
+enableWebSocket: true
+webSocketPort: 1032
+
+# Enable CORS for UI access
+enableCors: true
+corsOrigin:
+  - "http://localhost:4000"
+  - "https://goff-ui.your-domain.com"
+
+# API Key authentication (optional but recommended)
+# authorizedKeys:
+#   evaluation:
+#     - "your-evaluation-api-key"
+#   admin:
+#     - "your-admin-api-key"
+
+# Exporter configuration (optional)
+# exporter:
+#   kind: webhook
+#   endpointURL: https://your-analytics-endpoint.com/flags
+#   secret: "your-webhook-secret"
+
+---
+# Kubernetes ConfigMap version
+# Apply with: kubectl apply -f relay-proxy-config.example.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: goff-relay-proxy-config
+  namespace: go-feature-flag
+data:
+  config.yaml: |
+    listen: 0.0.0.0
+    listenPort: 1031
+    pollingInterval: 60000
+    enableWebSocket: true
+    webSocketPort: 1032
+    enableCors: true
+    corsOrigin:
+      - "http://localhost:4000"
+      - "https://goff-ui.your-domain.com"
+
+    # Use environment variable substitution for sensitive values
+    # Set ADO_PAT_BASE64 as an environment variable in the deployment
+    retrievers:
+      - kind: http
+        url: "https://ado.your-domain.com/org/project/_apis/git/repositories/feature-flags/items?path=/projects/project-alpha/flags.yaml&api-version=7.0"
+        headers:
+          Authorization: "Basic ${ADO_PAT_BASE64}"
+      - kind: http
+        url: "https://ado.your-domain.com/org/project/_apis/git/repositories/feature-flags/items?path=/projects/project-beta/flags.yaml&api-version=7.0"
+        headers:
+          Authorization: "Basic ${ADO_PAT_BASE64}"

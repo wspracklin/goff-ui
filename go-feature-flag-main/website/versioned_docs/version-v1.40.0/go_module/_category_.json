@@ -1,0 +1,10 @@
+{
+  "position": 600,
+  "label": "GO module",
+  "collapsible": true,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "GO module"
+  }
+}

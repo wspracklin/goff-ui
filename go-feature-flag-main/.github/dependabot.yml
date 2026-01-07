@@ -1,0 +1,211 @@
+version: 2
+updates:
+  # Main project
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: daily
+      time: "01:00"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: weekly
+      time: "04:00"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  # Integration tests
+  - package-ecosystem: nuget
+    directory: "/openfeature/provider_tests/dotnet-integration-tests"
+    schedule:
+      interval: daily
+      time: "04:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: gomod
+    directory: "/openfeature/provider_tests/go-integration-tests"
+    schedule:
+      interval: daily
+      time: "04:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: npm
+    directory: "/openfeature/provider_tests/js-integration-tests"
+    schedule:
+      interval: daily
+      time: "04:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: maven
+    directory: "/openfeature/provider_tests/java-integration-tests"
+    schedule:
+      interval: daily
+      time: "04:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  # Providers
+  # - package-ecosystem: gradle
+  #   directory: "/openfeature/providers/kotlin-provider/gofeatureflag-kotlin-provider"
+  #   schedule:
+  #     interval: weekly
+  #     time: "01:00"
+  #   open-pull-requests-limit: 10
+  #   labels:
+  #     - "dependencies"
+  #     - "automerge"
+  #   commit-message:
+  #     prefix: "chore"
+
+  - package-ecosystem: pip
+    directory: "/openfeature/providers/python-provider"
+    schedule:
+      interval: weekly
+      time: "01:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  # Examples App
+  - package-ecosystem: npm
+    directory: "/examples/openfeature_web/webapp"
+    schedule:
+      interval: weekly
+      time: "01:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: npm
+    directory: "/examples/openfeature_nodejs/nodejs-app"
+    schedule:
+      interval: weekly
+      time: "01:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: npm
+    directory: "/examples/openfeature_react/react-app"
+    schedule:
+      interval: weekly
+      time: "01:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: gradle
+    directory: "/examples/openfeature_kotlin_server/kotlin-app"
+    schedule:
+      interval: weekly
+      time: "01:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  # Website CI scripts
+  - package-ecosystem: gomod
+    directory: "/website/.ci"
+    schedule:
+      interval: weekly
+      time: "01:00"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: npm
+    directory: "/openfeature/ci_scripts/"
+    schedule:
+      interval: weekly
+      time: "04:20"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: gomod
+    directory: "/modules/core"
+    schedule:
+      interval: daily
+      time: "01:15"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore(dependencies)"
+
+  - package-ecosystem: gomod
+    directory: "/modules/evaluation"
+    schedule:
+      interval: daily
+      time: "01:30"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore(dependencies)"
+
+  - package-ecosystem: gomod
+    directory: "/cmd/wasm"
+    schedule:
+      interval: daily
+      time: "02:00"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore(dependencies)"

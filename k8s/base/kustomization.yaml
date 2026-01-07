@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: feature-flags
+
+resources:
+  - namespace.yaml
+  - configmap-flags.yaml
+  - secrets.yaml
+  - rbac.yaml
+  - flag-manager-api.yaml
+  - relay-proxy.yaml
+  - frontend.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: feature-flags
+
+images:
+  - name: your-registry/flag-manager-api
+    newTag: latest
+  - name: your-registry/goff-ui
+    newTag: latest
+  - name: gofeatureflag/go-feature-flag
+    newTag: latest

@@ -1,0 +1,114 @@
+---
+# Deployment for GOFF UI
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goff-ui
+  namespace: go-feature-flag
+  labels:
+    app: goff-ui
+    app.kubernetes.io/name: goff-ui
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: goff-ui
+  template:
+    metadata:
+      labels:
+        app: goff-ui
+    spec:
+      containers:
+        - name: goff-ui
+          # Replace with your image registry
+          image: your-registry/goff-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4000
+              name: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+# Service for GOFF UI
+apiVersion: v1
+kind: Service
+metadata:
+  name: goff-ui
+  namespace: go-feature-flag
+  labels:
+    app: goff-ui
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 4000
+      protocol: TCP
+      name: http
+  selector:
+    app: goff-ui
+
+---
+# Ingress for GOFF UI and Relay Proxy
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: goff-ingress
+  namespace: go-feature-flag
+  annotations:
+    # Uncomment for NGINX ingress controller
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    # nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # nginx.ingress.kubernetes.io/websocket-services: "goff-relay-proxy"
+    #
+    # Uncomment for cert-manager TLS
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  # Uncomment for TLS
+  # tls:
+  #   - hosts:
+  #       - goff.example.com
+  #       - goff-api.example.com
+  #     secretName: goff-tls
+  rules:
+    # UI access
+    - host: goff.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: goff-ui
+                port:
+                  number: 80
+    # API access (relay proxy)
+    - host: goff-api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: goff-relay-proxy
+                port:
+                  number: 1031

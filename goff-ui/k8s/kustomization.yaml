@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: go-feature-flag
+
+resources:
+  - namespace.yaml
+  - goff-relay-proxy.yaml
+  - goff-ui.yaml
+
+# Common labels for all resources
+commonLabels:
+  app.kubernetes.io/part-of: go-feature-flag
+
+# Image customization (update for your registry)
+images:
+  - name: your-registry/goff-ui
+    newName: your-registry/goff-ui
+    newTag: latest
+
+# ConfigMap generator for additional configurations
+# configMapGenerator:
+#   - name: additional-config
+#     files:
+#       - config.yaml

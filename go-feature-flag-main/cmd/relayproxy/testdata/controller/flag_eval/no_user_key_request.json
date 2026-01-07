@@ -1,0 +1,9 @@
+{
+  "evaluationContext": {
+    "custom": {
+      "custom1": "value1",
+      "custom2": "value2"
+    }
+  },
+  "defaultValue": "mydefaultFlagValue"
+}

@@ -1,0 +1,62 @@
+{
+  "name": "openfeature_web",
+  "version": "1.0.0",
+  "description": "An example project to test GO Feature Flag with the Openfeature web sdk",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "css:scss": "node-sass --output-style compressed -o dist src/scss",
+    "css:autoprefixer": "postcss -u autoprefixer -r dist/*.css",
+    "css:lint": "stylelint src/scss/*.scss  --custom-syntax postcss-scss",
+    "build:css": "npm run css:lint && npm run css:scss && npm run css:autoprefixer",
+    "watch:css": "onchange \"src/scss\" -- npm run build:css",
+    "build:images": "mkdir -p dist/images/ && cp -r src/images/* dist/images/",
+    "build:js": "webpack --mode=production",
+    "watch:js": "onchange \"src/js\" -- webpack --mode=development",
+    "build:html": "posthtml -c posthtml.json",
+    "watch:html": "onchange \"src/views\" -- npm run build:html",
+    "serve": "browser-sync start --server \"dist\" --files \"dist\"",
+    "serve:docker": "browser-sync start --open false --server \"dist\" --files \"dist\"",
+    "build": "run-p build:*",
+    "watch": "run-p build watch:* serve"
+  },
+  "keywords": [
+    "go-feature-flag",
+    "GO Feature Flag",
+    "Openfeature",
+    "Open Feature",
+    "open-feature"
+  ],
+  "author": "Thomas Poignant",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/eslint-parser": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
+    "autoprefixer": "^10.4.23",
+    "babel-loader": "^10.0.0",
+    "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-preset-env": "^1.7.0",
+    "browser-sync": "^3.0.4",
+    "eslint": "^9.39.2",
+    "eslint-webpack-plugin": "^5.0.2",
+    "htmlnano": "^3.0.0",
+    "imagemin-cli": "^8.0.0",
+    "node-sass": "^9.0.0",
+    "npm-run-all": "^4.1.5",
+    "onchange": "^7.1.0",
+    "postcss-cli": "^11.0.1",
+    "postcss-scss": "^4.0.9",
+    "posthtml": "^0.16.7",
+    "posthtml-cli": "^0.10.0",
+    "posthtml-modules": "^0.9.1",
+    "stylelint": "^16.26.1",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@openfeature/go-feature-flag-web-provider": "^0.2.7",
+    "@openfeature/web-sdk": "^1.7.2",
+    "highlight.js": "^11.11.1",
+    "uuid": "^13.0.0"
+  }
+}

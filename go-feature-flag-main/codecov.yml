@@ -1,0 +1,21 @@
+ignore:
+  - "examples"
+  - "testdata"
+  - "testutils"
+  - "website"
+  - "modeldocs"
+  - "**/_test.go"
+  - "**/_mock.go"
+  - "**/testdata/"
+  - "**/testutils/"
+  - "**/modeldocs/"
+  - "cmd/relayproxy/docs/"
+  - "cmd/jsonschema-generator/"
+  - "cmd/relayproxy/modeldocs/"
+  - "model/dto/converter_v0.go"
+
+coverage:
+  status:
+    project:
+      default:
+        threshold: 0.1%

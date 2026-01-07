@@ -1,0 +1,37 @@
+name: Generate Sponsors README
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 30 15 * * 0-6
+permissions: read-all
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          path: sponsors
+
+      - name: Generate Sponsors 💖
+        uses: JamesIves/github-sponsors-readme-action@1a120c92d5067dafeaedb33916301fd61338883d # v1.5.6
+        with:
+          token: ${{ secrets.SPONSORS_GITHUB_PAT }}
+          file: "sponsors/README.md"
+          fallback: "No sponsor at the moment! 😢"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
+        with:
+          branch: update-sponsor-list
+          title: "docs(README): Update sponsor list"
+          body: Automated pull request to update readme with the sponsor list
+          commit-message: Update readme with the sponsor list
+          labels: automerge
+          assignees: thomaspoignant
+          draft: false
+          signoff: true
+          delete-branch: true
+          path: sponsors
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}

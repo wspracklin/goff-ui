@@ -1,0 +1,9 @@
+# 20% of the users will use the variation "my-new-feature"
+test-flag:
+  variations:
+    my-new-feature: true
+    my-old-feature: false
+  defaultRule:
+    percentage:
+      my-new-feature: 20
+      my-old-feature: 80

@@ -1,0 +1,12 @@
+server:
+  mode: http
+  port: 1031
+logLevel: info
+flagsets:
+  - name: flagset1
+    notifiers:
+      - kind: tochange
+    exporters:
+      - kind: tochange
+    retrievers:
+      - kind: tochange

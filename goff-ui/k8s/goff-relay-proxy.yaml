@@ -1,0 +1,146 @@
+---
+# ConfigMap for GO Feature Flag configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: goff-relay-proxy-config
+  namespace: go-feature-flag
+data:
+  goff-proxy.yaml: |
+    # GO Feature Flag Relay Proxy Configuration
+    # See: https://gofeatureflag.org/docs/relay_proxy/configure_relay_proxy
+
+    listen: 1031
+    pollingInterval: 60s
+    startWithRetrieverError: false
+
+    # Configure your retriever here
+    # Example with file retriever:
+    retriever:
+      kind: file
+      path: /config/flags.yaml
+
+    # Uncomment to enable API keys
+    # authorizedKeys:
+    #   evaluation:
+    #     - your-evaluation-api-key
+    #   admin:
+    #     - your-admin-api-key
+
+    # Uncomment to configure exporters
+    # exporter:
+    #   kind: log
+
+  # Example feature flags configuration
+  flags.yaml: |
+    # Example feature flags
+    # See: https://gofeatureflag.org/docs/configure_flag/flag_format
+
+    my-feature-flag:
+      variations:
+        enabled: true
+        disabled: false
+      defaultRule:
+        variation: disabled
+      targeting:
+        - name: beta-users
+          query: beta eq "true"
+          variation: enabled
+
+    percentage-rollout-flag:
+      variations:
+        new-feature: true
+        old-feature: false
+      defaultRule:
+        percentage:
+          new-feature: 20
+          old-feature: 80
+
+---
+# Secret for API keys (optional)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: goff-relay-proxy-secrets
+  namespace: go-feature-flag
+type: Opaque
+stringData:
+  # Uncomment and set your API keys
+  # evaluation-api-key: "your-evaluation-key"
+  # admin-api-key: "your-admin-key"
+  placeholder: "placeholder"
+
+---
+# Deployment for GO Feature Flag Relay Proxy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goff-relay-proxy
+  namespace: go-feature-flag
+  labels:
+    app: goff-relay-proxy
+    app.kubernetes.io/name: goff-relay-proxy
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: goff-relay-proxy
+  template:
+    metadata:
+      labels:
+        app: goff-relay-proxy
+    spec:
+      containers:
+        - name: goff-relay-proxy
+          image: thomaspoignant/go-feature-flag:latest
+          ports:
+            - containerPort: 1031
+              name: http
+          args:
+            - --config=/config/goff-proxy.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 1031
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 1031
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: goff-relay-proxy-config
+
+---
+# Service for GO Feature Flag Relay Proxy
+apiVersion: v1
+kind: Service
+metadata:
+  name: goff-relay-proxy
+  namespace: go-feature-flag
+  labels:
+    app: goff-relay-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - port: 1031
+      targetPort: 1031
+      protocol: TCP
+      name: http
+  selector:
+    app: goff-relay-proxy

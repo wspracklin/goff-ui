@@ -1,0 +1,72 @@
+# Skaffold configuration for local Kubernetes development
+# Provides hot-reload for code changes
+
+apiVersion: skaffold/v4beta6
+kind: Config
+metadata:
+  name: goff-ui
+
+build:
+  local:
+    push: false
+  artifacts:
+    - image: flag-manager-api
+      context: flag-manager-api
+      docker:
+        dockerfile: Dockerfile
+    - image: goff-ui
+      context: goff-ui
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          # Sync static files without rebuild
+          - src: 'src/**/*.ts'
+            dest: /app/src
+          - src: 'src/**/*.tsx'
+            dest: /app/src
+
+deploy:
+  kustomize:
+    paths:
+      - k8s/local
+
+portForward:
+  - resourceType: service
+    resourceName: goff-ui
+    namespace: feature-flags
+    port: 3000
+    localPort: 6000
+  - resourceType: service
+    resourceName: flag-manager-api
+    namespace: feature-flags
+    port: 8095
+    localPort: 8095
+  - resourceType: service
+    resourceName: go-feature-flag
+    namespace: feature-flags
+    port: 1031
+    localPort: 1031
+
+profiles:
+  # Development profile with file sync
+  - name: dev
+    activation:
+      - command: dev
+    build:
+      artifacts:
+        - image: goff-ui
+          context: goff-ui
+          sync:
+            infer:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.css'
+
+  # CI profile - no port forwarding
+  - name: ci
+    deploy:
+      kustomize:
+        paths:
+          - k8s/local
+    portForward: []

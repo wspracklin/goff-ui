@@ -1,0 +1,13 @@
+some-new-flag:
+  variations:
+    enabled: true
+    disabled: false
+  defaultRule:
+    percentage:
+      enabled: 50
+      disabled: 50
+  disable: false
+  trackEvents: true
+  version: 1.0.1
+  metadata:
+    description: It tests the UI

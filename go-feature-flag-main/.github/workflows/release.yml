@@ -1,0 +1,353 @@
+name: Release
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 1
+      - name: Setup go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@d6af6abeda15e98926a57b5aa970a96bb37f97d1 # v5
+        with:
+          maven-version: 3.8.2
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: 23
+      - name: Install ICU packages
+        run: sudo apt-get update && sudo apt-get install -y libicu-dev
+      - uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        with:
+          dotnet-version: "7.0.x"
+      - run: make vendor
+      - run: make provider-tests
+
+  goreleaser:
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Free space on runner
+        run: ./.github/ci-scripts/free_space.sh
+
+      - name: Fetch all tags
+        run: git fetch --force --tags
+
+      - name: Setup go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.1.1
+
+      - name: Docker login
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
+        id: import_gpg
+        with:
+          gpg_private_key: ${{ secrets.GPG_SIGNING_KEY }}
+          passphrase: ${{ secrets.GPG_SIGNING_KEY_PASSWORD }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --timeout 60m
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+
+  dockerhub-lint:
+    runs-on: ubuntu-latest
+    name: Upload dockerhub readme
+    needs:
+      - goreleaser
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Release readme to DockerHub
+        uses: ms-jpq/sync-dockerhub-readme@e2991ea1ba48832e73555cdbd5b82f5a2e91ee9b # v1
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        with:
+          username: ${DOCKER_USERNAME}
+          password: ${DOCKER_PASSWORD}
+          repository: thomaspoignant/go-feature-flag-lint
+          readme: "./cmd/lint/DOCKERHUB_thomaspoignant.md"
+      - name: Release readme to DockerHub gofeatureflag
+        uses: ms-jpq/sync-dockerhub-readme@e2991ea1ba48832e73555cdbd5b82f5a2e91ee9b # v1
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        with:
+          username: ${DOCKER_USERNAME}
+          password: ${DOCKER_PASSWORD}
+          repository: gofeatureflag/go-feature-flag-lint
+          readme: "./cmd/lint/DOCKERHUB.md"
+
+  dockerhub-cli:
+    runs-on: ubuntu-latest
+    name: Upload dockerhub readme
+    needs:
+      - goreleaser
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Release readme to DockerHub
+        uses: ms-jpq/sync-dockerhub-readme@e2991ea1ba48832e73555cdbd5b82f5a2e91ee9b # v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: gofeatureflag/go-feature-flag-cli
+          readme: "./cmd/cli/DOCKERHUB.md"
+
+  dockerhub-relay-proxy:
+    runs-on: ubuntu-latest
+    name: Upload dockerhub readme
+    needs:
+      - goreleaser
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Release readme to DockerHub
+        uses: ms-jpq/sync-dockerhub-readme@e2991ea1ba48832e73555cdbd5b82f5a2e91ee9b # v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: thomaspoignant/go-feature-flag-relay-proxy
+          readme: "./cmd/relayproxy/DOCKERHUB_deprecated.md"
+
+  dockerhub-go-feature-flag-server:
+    runs-on: ubuntu-latest
+    name: Upload dockerhub readme
+    needs:
+      - goreleaser
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Release readme to DockerHub
+        uses: ms-jpq/sync-dockerhub-readme@e2991ea1ba48832e73555cdbd5b82f5a2e91ee9b # v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: thomaspoignant/go-feature-flag
+          readme: "./cmd/relayproxy/DOCKERHUB_thomaspoignant.md"
+      - name: Release readme to DockerHub gofeatureflag
+        uses: ms-jpq/sync-dockerhub-readme@e2991ea1ba48832e73555cdbd5b82f5a2e91ee9b # v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: gofeatureflag/go-feature-flag
+          readme: "./cmd/relayproxy/DOCKERHUB.md"
+
+  doc-release:
+    # doc release will create a new tag of the documentation en commit it in
+    # the main branch. This new version of the doc will be release to gh-pages
+    # when the GitHub Action called "Deploy to GitHub Pages" will be executed.
+    runs-on: ubuntu-latest
+    env:
+      MAIN_BRANCH_NAME: main
+      WEBSITE_DIR: website
+    name: Create new documentation tag
+    needs:
+      - goreleaser
+    steps:
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          path: release
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+
+      - name: Install dependencies
+        working-directory: ./release/${{ env.WEBSITE_DIR }}
+        run: npm install
+
+      - name: Tagging a new version
+        working-directory: ./release/${{ env.WEBSITE_DIR }}
+        env:
+          VERSION: ${{ env.VERSION }}
+        run: npm run docusaurus docs:version "$VERSION"
+
+      - name: Setup go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version-file: ./release/${{ env.WEBSITE_DIR }}/.ci/go.mod
+          check-latest: true
+
+      - name: Clean up version.json
+        working-directory: ./release/${{ env.WEBSITE_DIR }}/.ci
+        run: go run versions.go
+
+      - name: Checkout main branch
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ env.MAIN_BRANCH_NAME }}
+          path: ${{ env.MAIN_BRANCH_NAME }}
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Copy version to main branch
+        run: cp -rf release/${{ env.WEBSITE_DIR }}/ $MAIN_BRANCH_NAME
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
+        env:
+          VERSION: ${{ env.VERSION }}
+        with:
+          branch: create-new-doc-version-${{ env.VERSION }}
+          title: "docs(docusaurus): Create a new documentation version ${{ env.VERSION }}"
+          body: Automated pull request to create a new documentation version ${{ env.VERSION }}
+          commit-message: Create a new documentation version ${{ env.VERSION }}
+          labels: automerge
+          assignees: thomaspoignant
+          draft: false
+          signoff: true
+          delete-branch: true
+          path: ${{ env.MAIN_BRANCH_NAME }}
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+
+  release-jsonschema:
+    # release-jsonschema is opening a pull request to deploy a new jsonschema if needed
+    runs-on: ubuntu-latest
+    name: Release jsonschema
+    needs:
+      - goreleaser
+    env:
+      SCHEMA_LOCATION: .schema/flag-schema.json
+      MAIN_BRANCH_NAME: main
+    steps:
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          path: release
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+
+      - name: Setup go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version-file: ./release/go.mod
+          check-latest: true
+
+      - name: Build jsonschema-generator
+        working-directory: ./release/
+        run: make vendor && make build-jsonschema-generator
+
+      - name: Create jsonschema
+        working-directory: ./release/
+        run: ./out/bin/jsonschema-generator --schema-location=./.schema/flag-schema.json
+
+      - name: Checkout main branch
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ env.MAIN_BRANCH_NAME }}
+          path: ${{ env.MAIN_BRANCH_NAME }}
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Copy version to main branch
+        run: cp -rf release/$SCHEMA_LOCATION $MAIN_BRANCH_NAME/$SCHEMA_LOCATION
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
+        env:
+          VERSION: ${{ env.VERSION }}
+        with:
+          branch: release-jsonschema-${{ env.VERSION }}
+          title: "feat(jsonschema): Release a new version of the jsonschema ${{ env.VERSION }}"
+          body: Automated pull request to release a new version of the jsonschema ${{ env.VERSION }}
+          commit-message: Release a new version of the jsonschema ${{ env.VERSION }}
+          labels: automerge
+          assignees: thomaspoignant
+          draft: false
+          signoff: true
+          delete-branch: true
+          path: ${{ env.MAIN_BRANCH_NAME }}
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+
+  bump-relay-proxy-helm-chart:
+    # bump-relay-proxy-helm-chart is opening a pull request to bump the appVersion field
+    # in the Chart.yaml file of the helm-chart.
+    runs-on: ubuntu-latest
+    name: Bump Relay Proxy Helm Chart appVersion
+    needs:
+      - goreleaser
+    env:
+      CHART_YAML_FILE_LOCATION: cmd/relayproxy/helm-charts/relay-proxy/Chart.yaml
+      MAIN_BRANCH_NAME: main
+    steps:
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ env.MAIN_BRANCH_NAME }}
+          path: ${{ env.MAIN_BRANCH_NAME }}
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+
+      - name: Bump chart appVersion
+        env:
+          VERSION: ${{ env.VERSION }}
+        run: VERSION="${{ env.VERSION }}" make bump-helm-chart-version
+
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
+        env:
+          VERSION: ${{ env.VERSION }}
+        with:
+          branch: bump-relay-proxy-helm-chart-${{ env.VERSION }}
+          title: "chore(helm): Bump relay-proxy helm chart version ${{ env.VERSION }}"
+          body: Automated pull request to bump relay-proxy helm chart version ${{ env.VERSION }}
+          commit-message: Bump relay-proxy helm chart version ${{ env.VERSION }}
+          labels: automerge
+          assignees: thomaspoignant
+          draft: false
+          signoff: true
+          delete-branch: true
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}

@@ -1,0 +1,15 @@
+{
+  "trackEvents": true,
+  "variationType": "False",
+  "failed": false,
+  "version": "",
+  "reason": "TARGETING_MATCH_SPLIT",
+  "errorCode": "",
+  "value": {
+    "test3": "test"
+  },
+  "cacheable": true,
+  "metadata": {
+    "evaluatedRuleName": "rule1"
+  }
+}

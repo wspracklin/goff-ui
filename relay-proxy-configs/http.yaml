@@ -1,0 +1,13 @@
+# HTTP Retriever - Fetches flags from Flag Manager API
+listen: 1031
+host: 0.0.0.0
+
+retriever:
+  kind: http
+  url: ${FLAG_MANAGER_API_URL}/api/flags/raw
+  method: GET
+  timeout: 10000
+
+pollingInterval: 30000
+restApiTimeout: 5000
+enableAdmin: true
