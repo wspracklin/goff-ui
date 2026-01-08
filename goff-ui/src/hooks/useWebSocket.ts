@@ -25,11 +25,28 @@ export function useWebSocket() {
 
   const handleMessage = useCallback((data: unknown) => {
     try {
-      const message = data as WebSocketMessage;
+      // GO Feature Flag relay proxy can send messages in different formats:
+      // 1. Wrapped: { type: 'flag_change', data: DiffCache }
+      // 2. Direct DiffCache: { added: {...}, deleted: {...}, updated: {...} }
+      // 3. Error: { type: 'error', error: '...' }
 
-      if (message.type === 'flag_change' && message.data) {
+      const message = data as WebSocketMessage | DiffCache;
+      let diffCache: DiffCache | undefined;
+
+      // Check if it's a wrapped message with type field
+      if ('type' in message && message.type === 'flag_change' && 'data' in message) {
+        diffCache = (message as WebSocketMessage).data;
+      } else if ('type' in message && message.type === 'error') {
+        console.error('WebSocket error:', (message as WebSocketMessage).error);
+        return;
+      } else if ('added' in message || 'deleted' in message || 'updated' in message) {
+        // Direct DiffCache format (no wrapper)
+        diffCache = message as DiffCache;
+      }
+
+      if (diffCache) {
         // Add to store
-        addFlagUpdate(message.data);
+        addFlagUpdate(diffCache);
 
         // Invalidate relevant queries
         queryClient.invalidateQueries({ queryKey: ['flags-config'] });
@@ -37,9 +54,9 @@ export function useWebSocket() {
         queryClient.invalidateQueries({ queryKey: ['flagset-flags'] });
 
         // Show notification
-        const added = message.data.added ? Object.keys(message.data.added).length : 0;
-        const deleted = message.data.deleted ? Object.keys(message.data.deleted).length : 0;
-        const updated = message.data.updated ? Object.keys(message.data.updated).length : 0;
+        const added = diffCache.added ? Object.keys(diffCache.added).length : 0;
+        const deleted = diffCache.deleted ? Object.keys(diffCache.deleted).length : 0;
+        const updated = diffCache.updated ? Object.keys(diffCache.updated).length : 0;
 
         const changes: string[] = [];
         if (added > 0) changes.push(`${added} added`);
@@ -51,8 +68,9 @@ export function useWebSocket() {
             duration: 5000,
           });
         }
-      } else if (message.type === 'error') {
-        console.error('WebSocket error:', message.error);
+      } else {
+        // Log unrecognized message format for debugging
+        console.log('WebSocket received unrecognized message:', data);
       }
     } catch (error) {
       console.error('Failed to parse WebSocket message:', error);
@@ -72,8 +90,13 @@ export function useWebSocket() {
 
     setWsStatus('connecting');
 
+    console.log('WebSocket: Attempting to connect to relay proxy...');
+
     const ws = goffClient.connectWebSocket(
-      handleMessage,
+      (data) => {
+        console.log('WebSocket: Received message:', data);
+        handleMessage(data);
+      },
       (error) => {
         console.error('WebSocket error:', error);
         setWsStatus('error');
@@ -103,6 +126,8 @@ export function useWebSocket() {
         reconnectAttempts.current = 0;
         console.log('WebSocket connected for real-time flag updates');
       };
+    } else {
+      console.warn('WebSocket: Failed to create connection (connectWebSocket returned null)');
     }
   }, [isDevMode, isConnected, config.proxyUrl, handleMessage]);
 

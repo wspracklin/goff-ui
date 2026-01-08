@@ -167,7 +167,10 @@ class GoFeatureFlagClient {
       ? `?apiKey=${encodeURIComponent(this.config.apiKey)}`
       : '';
 
-    const ws = new WebSocket(`${wsUrl}/ws/v1/flag/change${apiKeyParam}`);
+    const fullWsUrl = `${wsUrl}/ws/v1/flag/change${apiKeyParam}`;
+    console.log('WebSocket: Connecting to', fullWsUrl);
+
+    const ws = new WebSocket(fullWsUrl);
 
     ws.onmessage = (event) => {
       try {
