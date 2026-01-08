@@ -10,7 +10,6 @@ import {
   FlaskConical,
   Activity,
   RefreshCw,
-  FolderOpen,
   ChevronDown,
   Layers,
 } from 'lucide-react';
@@ -35,8 +34,7 @@ interface FlagSet {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isConnected, flagUpdates, selectedProject, setSelectedProject, isDevMode, setDevMode, selectedFlagSet, setSelectedFlagSet } = useAppStore();
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const { isConnected, flagUpdates, isDevMode, setDevMode, selectedFlagSet, setSelectedFlagSet } = useAppStore();
   const [flagSetDropdownOpen, setFlagSetDropdownOpen] = useState(false);
 
   // Check dev mode on mount
@@ -46,17 +44,6 @@ export function Sidebar() {
       .then(data => setDevMode(data.devMode))
       .catch(() => setDevMode(false));
   }, [setDevMode]);
-
-  const projectsQuery = useQuery({
-    queryKey: ['projects'],
-    queryFn: async () => {
-      const res = await fetch('/api/projects');
-      if (!res.ok) throw new Error('Failed to fetch projects');
-      return res.json() as Promise<{ projects: string[] }>;
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    enabled: !isDevMode, // Don't fetch projects in dev mode
-  });
 
   const flagSetsQuery = useQuery({
     queryKey: ['flagsets'],
@@ -71,33 +58,26 @@ export function Sidebar() {
     refetchOnMount: true,
   });
 
-  // Auto-select default flagset if none selected, or clear if selected one was deleted
+  // Auto-select default flagset, or clear if selected one was deleted
   useEffect(() => {
     const flagSets = flagSetsQuery.data || [];
 
-    // If current selection no longer exists, clear it
-    if (selectedFlagSet && !flagSets.find(fs => fs.id === selectedFlagSet)) {
-      if (flagSets.length > 0) {
-        const defaultFlagSet = flagSets.find(fs => fs.isDefault);
-        setSelectedFlagSet(defaultFlagSet?.id || flagSets[0]?.id || null);
-      } else {
-        setSelectedFlagSet(null);
-      }
+    // If current selection no longer exists in the list, clear it
+    if (selectedFlagSet && flagSets.length > 0 && !flagSets.find(fs => fs.id === selectedFlagSet)) {
+      setSelectedFlagSet(null);
       return;
     }
 
-    // Auto-select if none selected
+    // Auto-select default flag set if none selected
     if (!selectedFlagSet && flagSets.length > 0) {
       const defaultFlagSet = flagSets.find(fs => fs.isDefault);
-      if (defaultFlagSet) {
-        setSelectedFlagSet(defaultFlagSet.id);
-      } else {
-        setSelectedFlagSet(flagSets[0].id);
-      }
+      setSelectedFlagSet(defaultFlagSet?.id || flagSets[0].id);
     }
   }, [selectedFlagSet, flagSetsQuery.data, setSelectedFlagSet]);
 
-  const selectedFlagSetName = flagSetsQuery.data?.find(fs => fs.id === selectedFlagSet)?.name;
+  const selectedFlagSetName = selectedFlagSet
+    ? flagSetsQuery.data?.find(fs => fs.id === selectedFlagSet)?.name
+    : 'Select Flag Set';
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
@@ -107,85 +87,16 @@ export function Sidebar() {
         <span className="text-lg font-semibold">GO Feature Flag</span>
       </div>
 
-      {/* Project Selector - Only show when not in dev mode */}
-      {!isDevMode && (
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <div className="relative">
-            <button
-              onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
-              className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-            >
-              <div className="flex items-center gap-2">
-                <FolderOpen className="h-4 w-4 text-zinc-500" />
-                <span className="truncate">
-                  {selectedProject || 'Select Project'}
-                </span>
-              </div>
-              <ChevronDown
-                className={cn(
-                  'h-4 w-4 text-zinc-500 transition-transform',
-                  projectDropdownOpen && 'rotate-180'
-                )}
-              />
-            </button>
-
-            {projectDropdownOpen && (
-              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-auto rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                {projectsQuery.isLoading ? (
-                  <div className="px-3 py-2 text-sm text-zinc-500">Loading...</div>
-                ) : projectsQuery.error ? (
-                  <div className="px-3 py-2 text-sm text-red-500">
-                    Failed to load projects
-                  </div>
-                ) : projectsQuery.data?.projects.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-zinc-500">
-                    No projects found
-                  </div>
-                ) : (
-                  projectsQuery.data?.projects.map((project) => (
-                    <button
-                      key={project}
-                      onClick={() => {
-                        setSelectedProject(project);
-                        setProjectDropdownOpen(false);
-                      }}
-                      className={cn(
-                        'flex w-full items-center px-3 py-2 text-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800',
-                        selectedProject === project &&
-                          'bg-zinc-100 font-medium dark:bg-zinc-800'
-                      )}
-                    >
-                      {project}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Dev Mode Indicator */}
-      {isDevMode && (
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-950">
-            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
-              Dev Mode - Using Local Flags
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Flagset Selector */}
-      {flagSetsQuery.data && flagSetsQuery.data.length > 0 && (
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+        {flagSetsQuery.data && flagSetsQuery.data.length > 0 ? (
           <div className="relative">
             <button
               onClick={() => setFlagSetDropdownOpen(!flagSetDropdownOpen)}
               className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
               <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-zinc-500" />
+                <Layers className="h-4 w-4 text-purple-500" />
                 <span className="truncate">
                   {selectedFlagSetName || 'Select Flag Set'}
                 </span>
@@ -232,8 +143,19 @@ export function Sidebar() {
               </div>
             )}
           </div>
-        </div>
-      )}
+        ) : (
+          <Link
+            href="/settings/flagsets"
+            className="flex w-full items-center justify-between rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          >
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4" />
+              <span>Create a Flag Set</span>
+            </div>
+            <ChevronDown className="h-4 w-4 rotate-[-90deg]" />
+          </Link>
+        )}
+      </div>
 
       {/* Connection Status */}
       <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">

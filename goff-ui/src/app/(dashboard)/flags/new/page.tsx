@@ -14,14 +14,43 @@ import goffClient from '@/lib/api';
 export default function NewFlagPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { selectedProject, isDevMode, config } = useAppStore();
+  const { selectedProject, isDevMode, config, selectedFlagSet } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSave = async (key: string, flagConfig: LocalFlagConfig) => {
-    // In dev mode, use local API
-    if (isDevMode) {
-      setIsLoading(true);
-      try {
+    setIsLoading(true);
+
+    try {
+      // If a flagset is selected, create flag in that flagset
+      if (selectedFlagSet) {
+        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags/${encodeURIComponent(key)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(flagConfig),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create flag');
+        }
+
+        // Try to refresh flags on the relay proxy if admin key is configured
+        if (config.adminApiKey) {
+          try {
+            await goffClient.refreshFlags();
+          } catch {
+            // Ignore refresh errors
+          }
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
+        toast.success(`Flag "${key}" created successfully`);
+        router.push('/flags');
+        return;
+      }
+
+      // No flagset selected - use local API in dev mode
+      if (isDevMode) {
         await localFlagAPI.createFlag(key, flagConfig);
 
         // Try to refresh flags on the relay proxy if admin key is configured
@@ -38,22 +67,15 @@ export default function NewFlagPage() {
 
         toast.success(`Flag "${key}" created successfully`);
         router.push('/flags');
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to create flag');
-      } finally {
-        setIsLoading(false);
+        return;
       }
-      return;
-    }
 
-    // In production mode, use PR workflow
-    if (!selectedProject) {
-      toast.error('Please select a project first');
-      return;
-    }
+      // In production mode without flagset, use PR workflow
+      if (!selectedProject) {
+        toast.error('Please select a project first');
+        return;
+      }
 
-    setIsLoading(true);
-    try {
       const response = await fetch(`/api/projects/${encodeURIComponent(selectedProject)}/flags/propose`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,7 +117,7 @@ export default function NewFlagPage() {
     }
   };
 
-  const showProjectWarning = !isDevMode && !selectedProject;
+  const showProjectWarning = !isDevMode && !selectedProject && !selectedFlagSet;
 
   return (
     <div className="space-y-6 max-w-4xl">

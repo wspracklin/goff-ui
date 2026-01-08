@@ -51,17 +51,28 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  // In dev mode, fetch from local flags file; otherwise from relay proxy
+  // Fetch flags from the selected flagset (or fallback to local/relay proxy)
   const flagsQuery = useQuery({
-    queryKey: isDevMode ? ['local-flags'] : ['flags-config'],
+    queryKey: selectedFlagSet ? ['flagset-flags', selectedFlagSet] : (isDevMode ? ['local-flags'] : ['flags-config']),
     queryFn: async () => {
+      // If a flagset is selected, fetch from that flagset
+      if (selectedFlagSet) {
+        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch flags from flagset');
+        }
+        const data = await response.json();
+        return { flags: data.flags || {} };
+      }
+
+      // No flagset selected - fall back to local/relay proxy
       if (isDevMode) {
         const result = await localFlagAPI.listFlags();
         return { flags: result.flags };
       }
       return goffClient.getFlagConfiguration();
     },
-    enabled: isDevMode || isConnected,
+    enabled: !!selectedFlagSet || isDevMode || isConnected,
     refetchInterval: 30000,
   });
 
@@ -82,6 +93,7 @@ export default function DashboardPage() {
   // Type for flag with percentage rollout
   type FlagWithRollout = {
     disable?: boolean;
+    version?: string;
     defaultRule?: {
       variation?: string;
       percentage?: Record<string, number>;
@@ -89,12 +101,14 @@ export default function DashboardPage() {
   };
 
   // Helper to check if flag uses percentage rollout
-  const isPercentageRollout = (flag: FlagWithRollout): boolean => {
+  const isPercentageRollout = (flag: FlagWithRollout | null | undefined): boolean => {
+    if (!flag) return false;
     return !!(flag.defaultRule?.percentage && Object.keys(flag.defaultRule.percentage).length > 0);
   };
 
   // Helper to determine if a flag is currently "on" based on defaultRule
-  const isFlagOn = (flag: FlagWithRollout): boolean => {
+  const isFlagOn = (flag: FlagWithRollout | null | undefined): boolean => {
+    if (!flag) return false;
     if (flag.disable) return false;
 
     // For percentage rollout, check if "on" variations have any percentage
@@ -113,7 +127,8 @@ export default function DashboardPage() {
   };
 
   // Helper to get percentage for rollout flags
-  const getOnPercentage = (flag: FlagWithRollout): number => {
+  const getOnPercentage = (flag: FlagWithRollout | null | undefined): number => {
+    if (!flag) return 0;
     if (!isPercentageRollout(flag)) return isFlagOn(flag) ? 100 : 0;
     const onVariations = ['enabled', 'on', 'true', 'yes', 'active'];
     const percentage = flag.defaultRule?.percentage || {};
@@ -126,17 +141,18 @@ export default function DashboardPage() {
     return totalOn;
   };
 
-  const flagCount = flagsQuery.data?.flags
-    ? Object.keys(flagsQuery.data.flags).length
-    : 0;
+  const flags = (flagsQuery.data?.flags || {}) as Record<string, FlagWithRollout | null>;
 
-  const enabledFlags = flagsQuery.data?.flags
-    ? Object.values(flagsQuery.data.flags).filter((f) => isFlagOn(f)).length
-    : 0;
+  // Filter out null flags
+  const validFlags = Object.entries(flags).filter(([, flag]) => flag != null) as [string, FlagWithRollout][];
+
+  const flagCount = validFlags.length;
+
+  const enabledFlags = validFlags.filter(([, f]) => isFlagOn(f)).length;
 
   const disabledFlags = flagCount - enabledFlags;
 
-  if (!isConnected && !isDevMode) {
+  if (!isConnected && !isDevMode && !selectedFlagSet) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <AlertCircle className="h-16 w-16 text-yellow-500" />
@@ -146,6 +162,7 @@ export default function DashboardPage() {
           <Link href="/settings" className="text-blue-600 hover:underline">
             Settings
           </Link>
+          {' '}or select a Flag Set from the sidebar
         </p>
       </div>
     );
@@ -294,9 +311,9 @@ export default function DashboardPage() {
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
-          ) : flagsQuery.data?.flags ? (
+          ) : flagCount > 0 ? (
             <div className="space-y-2">
-              {Object.entries(flagsQuery.data.flags)
+              {validFlags
                 .slice(0, 10)
                 .map(([key, flag]) => {
                   const isRollout = isPercentageRollout(flag);
@@ -337,12 +354,12 @@ export default function DashboardPage() {
                     </Link>
                   );
                 })}
-              {Object.keys(flagsQuery.data.flags).length > 10 && (
+              {flagCount > 10 && (
                 <Link
                   href="/flags"
                   className="block text-center text-sm text-blue-600 hover:underline"
                 >
-                  View all {Object.keys(flagsQuery.data.flags).length} flags
+                  View all {flagCount} flags
                 </Link>
               )}
             </div>

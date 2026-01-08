@@ -20,6 +20,7 @@ import {
   TrendingUp,
   ListOrdered,
   Clock,
+  Key,
 } from 'lucide-react';
 import {
   Card,
@@ -46,11 +47,18 @@ import { formatValue, getValueType, getValueColor } from '@/lib/utils';
 import { toast } from 'sonner';
 import { CodeSnippets } from '@/components/CodeSnippets';
 
+interface FlagSet {
+  id: string;
+  name: string;
+  apiKeys: string[];
+  isDefault: boolean;
+}
+
 export default function FlagDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { isConnected, selectedProject, isDevMode, config } = useAppStore();
+  const { isConnected, selectedProject, isDevMode, config, selectedFlagSet } = useAppStore();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -142,82 +150,62 @@ export default function FlagDetailPage() {
     return String(value);
   };
 
-  // In dev mode, fetch from local flags file; otherwise from relay proxy
-  const localFlagQuery = useQuery({
-    queryKey: ['local-flag', flagKey],
-    queryFn: () => localFlagAPI.getFlag(flagKey),
-    enabled: isDevMode,
+  // Fetch flagset info for context display
+  const flagSetQuery = useQuery({
+    queryKey: ['flagset', selectedFlagSet],
+    queryFn: async () => {
+      if (!selectedFlagSet) return null;
+      const response = await fetch(`/api/flagsets/${selectedFlagSet}`);
+      if (!response.ok) throw new Error('Failed to fetch flag set');
+      return response.json() as Promise<FlagSet>;
+    },
+    enabled: !!selectedFlagSet,
+  });
+
+  // Fetch the specific flag from the selected flagset
+  const flagQuery = useQuery({
+    queryKey: ['flagset-flag', selectedFlagSet, flagKey],
+    queryFn: async () => {
+      if (!selectedFlagSet) return null;
+      const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
+      if (!response.ok) throw new Error('Failed to fetch flags');
+      const data = await response.json();
+      return data.flags?.[flagKey] as LocalFlagConfig | null;
+    },
+    enabled: !!selectedFlagSet,
   });
 
   const handleDelete = async () => {
-    // In dev mode, use local API
-    if (isDevMode) {
-      setIsDeleting(true);
-      try {
-        await localFlagAPI.deleteFlag(flagKey);
-
-        // Try to refresh flags on the relay proxy
-        if (config.adminApiKey) {
-          try {
-            await goffClient.refreshFlags();
-          } catch {
-            // Ignore refresh errors
-          }
-        }
-
-        await queryClient.invalidateQueries({ queryKey: ['flags-config'] });
-        await queryClient.invalidateQueries({ queryKey: ['local-flags'] });
-
-        toast.success(`Flag "${flagKey}" deleted`);
-        router.push('/flags');
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to delete flag');
-      } finally {
-        setIsDeleting(false);
-        setShowDeleteDialog(false);
-      }
-      return;
-    }
-
-    // In production mode, use PR workflow
-    if (!selectedProject) {
-      toast.error('Please select a project first');
+    if (!selectedFlagSet) {
+      toast.error('Please select a flag set first');
       return;
     }
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/projects/${encodeURIComponent(selectedProject)}/flags/propose`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete',
-          flagKey,
-        }),
-      });
-
-      const data = await response.json();
+      const response = await fetch(
+        `/api/flagsets/${selectedFlagSet}/flags/${encodeURIComponent(flagKey)}`,
+        { method: 'DELETE' }
+      );
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create PR');
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete flag');
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['flags-config'] });
-      await queryClient.invalidateQueries({ queryKey: ['projects'] });
+      // Try to refresh flags on the relay proxy
+      if (config.adminApiKey) {
+        try {
+          await goffClient.refreshFlags();
+        } catch {
+          // Ignore refresh errors
+        }
+      }
 
-      toast.success(
-        <div className="flex items-center gap-2">
-          <span>Deletion PR created!</span>
-          <a
-            href={data.pullRequest.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-blue-600 hover:underline"
-          >
-            View PR <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
-      );
+      await queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
+      await queryClient.invalidateQueries({ queryKey: ['flagset-flag', selectedFlagSet, flagKey] });
+
+      toast.success(`Flag "${flagKey}" deleted`);
       router.push('/flags');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to delete flag');
@@ -227,30 +215,22 @@ export default function FlagDetailPage() {
     }
   };
 
-  const flagsQuery = useQuery({
-    queryKey: ['flags-config'],
-    queryFn: () => goffClient.getFlagConfiguration(),
-    enabled: isConnected && !isDevMode,
-  });
+  const flag = flagQuery.data;
+  const flagSet = flagSetQuery.data;
+  const isLoading = flagQuery.isLoading;
 
-  // Use local flag data in dev mode, otherwise use relay proxy data
-  const flag = isDevMode
-    ? localFlagQuery.data?.config
-    : flagsQuery.data?.flags?.[flagKey];
-
-  const isLoading = isDevMode ? localFlagQuery.isLoading : flagsQuery.isLoading;
-
-  if (!isConnected && !isDevMode) {
+  if (!selectedFlagSet) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
-        <AlertCircle className="h-16 w-16 text-yellow-500" />
-        <h2 className="text-2xl font-semibold">Not Connected</h2>
+        <Layers className="h-16 w-16 text-yellow-500" />
+        <h2 className="text-2xl font-semibold">No Flag Set Selected</h2>
         <p className="text-zinc-600 dark:text-zinc-400">
-          Configure your connection in{' '}
-          <Link href="/settings" className="text-blue-600 hover:underline">
-            Settings
-          </Link>
+          Please select a flag set from the sidebar to view flags
         </p>
+        <Button onClick={() => router.push('/flags')}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Flags
+        </Button>
       </div>
     );
   }
@@ -329,11 +309,22 @@ export default function FlagDetailPage() {
               <Badge variant="secondary">v{flag.version}</Badge>
             )}
           </div>
-          {flag.metadata?.description ? (
-            <p className="mt-1 text-zinc-600 dark:text-zinc-400">
-              {String(flag.metadata.description)}
-            </p>
-          ) : null}
+          <div className="flex items-center gap-2 mt-1">
+            {flag.metadata?.description ? (
+              <p className="text-zinc-600 dark:text-zinc-400">
+                {String(flag.metadata.description)}
+              </p>
+            ) : null}
+            {flagSet && (
+              <Link
+                href="/settings/flagsets"
+                className="flex items-center gap-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+              >
+                <Layers className="h-3 w-3" />
+                {flagSet.name}
+              </Link>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Link href={`/evaluator?flag=${encodeURIComponent(flagKey)}`}>
@@ -553,6 +544,8 @@ export default function FlagDetailPage() {
             flagType={detectFlagType(flag)}
             defaultValue={getDefaultValue(flag)}
             relayProxyUrl={config.proxyUrl || 'http://localhost:1031'}
+            apiKey={flagSet?.apiKeys?.[0]}
+            flagSetName={flagSet?.name}
           />
         </div>
 

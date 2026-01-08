@@ -22,6 +22,8 @@ import {
   FolderOpen,
   Terminal,
   RotateCcw,
+  Download,
+  FileCode,
 } from 'lucide-react';
 import {
   Card,
@@ -383,6 +385,59 @@ export default function SettingsPage() {
             <ChevronRight className="h-5 w-5 text-zinc-400" />
           </CardContent>
         </Link>
+      </Card>
+
+      {/* Relay Proxy Monitoring Link - Production mode only */}
+      {!isDevMode && (
+        <Card className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
+          <Link href="/settings/relay-proxy">
+            <CardContent className="flex items-center justify-between p-6">
+              <div className="flex items-center gap-4">
+                <Server className="h-6 w-6 text-green-600" />
+                <div>
+                  <h3 className="font-medium">Relay Proxy Monitoring</h3>
+                  <p className="text-sm text-zinc-500">
+                    Health status, info, and Prometheus metrics from the relay proxy
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-zinc-400" />
+            </CardContent>
+          </Link>
+        </Card>
+      )}
+
+      {/* Generate Relay Proxy Config */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileCode className="h-5 w-5" />
+            Relay Proxy Configuration
+          </CardTitle>
+          <CardDescription>
+            Generate a relay proxy config file from your configured flag sets
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+            <div>
+              <h4 className="font-medium">Download Config</h4>
+              <p className="text-sm text-zinc-500">
+                Generate relay-proxy-config.yaml based on all configured flag sets
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                window.open('/api/relay-config', '_blank');
+                toast.success('Downloading relay proxy configuration');
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Notifiers Link */}

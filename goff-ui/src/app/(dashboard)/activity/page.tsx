@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Activity,
@@ -11,6 +10,7 @@ import {
   Plus,
   Minus,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import {
   Card,
@@ -22,78 +22,32 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/store';
-import goffClient from '@/lib/api';
-import { DiffCache } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
-import { toast } from 'sonner';
+import { useWebSocketContext } from '@/components/providers/websocket-provider';
 
 export default function ActivityPage() {
-  const { isConnected, config, flagUpdates, addFlagUpdate, clearFlagUpdates } =
-    useAppStore();
-  const [wsConnected, setWsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const { isConnected, isDevMode, flagUpdates, clearFlagUpdates } = useAppStore();
+  const { wsStatus, reconnect } = useWebSocketContext();
 
-  useEffect(() => {
-    if (!isConnected || !config.proxyUrl) return;
+  const wsConnected = wsStatus === 'connected';
+  const wsConnecting = wsStatus === 'connecting';
 
-    const connectWebSocket = () => {
-      const ws = goffClient.connectWebSocket(
-        (data) => {
-          addFlagUpdate(data as DiffCache);
-          toast.info('Flag configuration updated');
-        },
-        () => {
-          setWsConnected(false);
-        },
-        () => {
-          setWsConnected(false);
-        }
-      );
-
-      if (ws) {
-        ws.onopen = () => {
-          setWsConnected(true);
-          toast.success('WebSocket connected');
-        };
-        wsRef.current = ws;
-      }
-    };
-
-    connectWebSocket();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [isConnected, config.proxyUrl, addFlagUpdate]);
-
-  const reconnectWebSocket = () => {
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-
-    const ws = goffClient.connectWebSocket(
-      (data) => {
-        addFlagUpdate(data as DiffCache);
-        toast.info('Flag configuration updated');
-      },
-      () => {
-        setWsConnected(false);
-      },
-      () => {
-        setWsConnected(false);
-      }
+  if (isDevMode) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <AlertCircle className="h-16 w-16 text-amber-500" />
+        <h2 className="text-2xl font-semibold">Development Mode</h2>
+        <p className="text-zinc-600 dark:text-zinc-400 text-center max-w-md">
+          Real-time activity monitoring requires a connection to a relay proxy.
+          Switch to Production mode in{' '}
+          <Link href="/settings" className="text-blue-600 hover:underline">
+            Settings
+          </Link>{' '}
+          to enable WebSocket updates.
+        </p>
+      </div>
     );
-
-    if (ws) {
-      ws.onopen = () => {
-        setWsConnected(true);
-        toast.success('WebSocket reconnected');
-      };
-      wsRef.current = ws;
-    }
-  };
+  }
 
   if (!isConnected) {
     return (
@@ -129,11 +83,15 @@ export default function ActivityPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={reconnectWebSocket}
-            disabled={wsConnected}
+            onClick={reconnect}
+            disabled={wsConnected || wsConnecting}
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Reconnect
+            {wsConnecting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            {wsConnecting ? 'Connecting...' : 'Reconnect'}
           </Button>
         </div>
       </div>
@@ -145,22 +103,26 @@ export default function ActivityPage() {
             <div className="flex items-center gap-3">
               {wsConnected ? (
                 <Wifi className="h-5 w-5 text-green-500" />
+              ) : wsConnecting ? (
+                <Loader2 className="h-5 w-5 text-amber-500 animate-spin" />
               ) : (
                 <WifiOff className="h-5 w-5 text-red-500" />
               )}
               <div>
                 <p className="font-medium">
-                  WebSocket {wsConnected ? 'Connected' : 'Disconnected'}
+                  WebSocket {wsConnected ? 'Connected' : wsConnecting ? 'Connecting' : 'Disconnected'}
                 </p>
                 <p className="text-sm text-zinc-500">
                   {wsConnected
                     ? 'Listening for flag changes in real-time'
+                    : wsConnecting
+                    ? 'Establishing connection to relay proxy...'
                     : 'Not receiving real-time updates'}
                 </p>
               </div>
             </div>
-            <Badge variant={wsConnected ? 'success' : 'destructive'}>
-              {wsConnected ? 'Live' : 'Offline'}
+            <Badge variant={wsConnected ? 'success' : wsConnecting ? 'secondary' : 'destructive'}>
+              {wsConnected ? 'Live' : wsConnecting ? 'Connecting' : 'Offline'}
             </Badge>
           </div>
         </CardContent>

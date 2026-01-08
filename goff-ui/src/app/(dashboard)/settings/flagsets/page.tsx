@@ -22,6 +22,14 @@ import {
   Globe,
   FileText,
   Database,
+  Bell,
+  Upload,
+  ChevronDown,
+  ChevronUp,
+  Cloud,
+  GitBranch,
+  HardDrive,
+  MessageSquare,
 } from 'lucide-react';
 import {
   Card,
@@ -53,17 +61,41 @@ interface FlagSetRetriever {
   headers?: Record<string, string>;
   pollingInterval?: number;
   fileFormat?: string;
+  // S3
+  bucket?: string;
+  item?: string;
+  // GitHub/GitLab/Bitbucket
+  repositorySlug?: string;
+  branch?: string;
+  token?: string;
+  // Kubernetes
+  namespace?: string;
+  configmap?: string;
+  // Database
+  connectionString?: string;
+  database?: string;
+  collection?: string;
+  prefix?: string;
 }
 
 interface FlagSetExporter {
   kind: string;
   endpointUrl?: string;
   flushInterval?: number;
+  // S3/GCS/Azure
+  bucket?: string;
+  // Kafka
+  topic?: string;
+  brokers?: string;
+  // SQS
+  queueUrl?: string;
 }
 
 interface FlagSetNotifier {
   kind: string;
   slackWebhookUrl?: string;
+  discordWebhookUrl?: string;
+  teamsWebhookUrl?: string;
   endpointUrl?: string;
 }
 
@@ -80,18 +112,64 @@ interface FlagSet {
   updatedAt: string;
 }
 
-type RetrieverKind = 'file' | 'http' | 'git';
+// All 12 retriever types from GO Feature Flag documentation
+type RetrieverKind = 'file' | 'http' | 's3' | 'gcs' | 'azure' | 'github' | 'gitlab' | 'bitbucket' | 'kubernetes' | 'mongodb' | 'redis' | 'postgresql';
 
 const retrieverKindLabels: Record<RetrieverKind, string> = {
-  file: 'File',
-  http: 'HTTP',
-  git: 'Git Repository',
+  file: 'File System',
+  http: 'HTTP(S)',
+  s3: 'AWS S3',
+  gcs: 'Google Cloud Storage',
+  azure: 'Azure Blob Storage',
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  bitbucket: 'Bitbucket',
+  kubernetes: 'Kubernetes ConfigMap',
+  mongodb: 'MongoDB',
+  redis: 'Redis',
+  postgresql: 'PostgreSQL',
 };
 
 const retrieverKindIcons: Record<RetrieverKind, React.ReactNode> = {
   file: <FileText className="h-4 w-4" />,
   http: <Globe className="h-4 w-4" />,
-  git: <Database className="h-4 w-4" />,
+  s3: <Cloud className="h-4 w-4" />,
+  gcs: <Cloud className="h-4 w-4" />,
+  azure: <Cloud className="h-4 w-4" />,
+  github: <GitBranch className="h-4 w-4" />,
+  gitlab: <GitBranch className="h-4 w-4" />,
+  bitbucket: <GitBranch className="h-4 w-4" />,
+  kubernetes: <HardDrive className="h-4 w-4" />,
+  mongodb: <Database className="h-4 w-4" />,
+  redis: <Database className="h-4 w-4" />,
+  postgresql: <Database className="h-4 w-4" />,
+};
+
+// Exporter types from GO Feature Flag documentation
+type ExporterKind = 'webhook' | 'file' | 'log' | 's3' | 'gcs' | 'azure' | 'kafka' | 'kinesis' | 'pubsub' | 'sqs' | 'opentelemetry';
+
+const exporterKindLabels: Record<ExporterKind, string> = {
+  webhook: 'Webhook',
+  file: 'File System',
+  log: 'Application Log',
+  s3: 'AWS S3',
+  gcs: 'Google Cloud Storage',
+  azure: 'Azure Blob Storage',
+  kafka: 'Apache Kafka',
+  kinesis: 'AWS Kinesis',
+  pubsub: 'Google Cloud PubSub',
+  sqs: 'AWS SQS',
+  opentelemetry: 'OpenTelemetry',
+};
+
+// Notifier types from GO Feature Flag documentation
+type NotifierKind = 'slack' | 'discord' | 'teams' | 'webhook';
+
+const notifierKindLabels: Record<NotifierKind, string> = {
+  slack: 'Slack',
+  discord: 'Discord',
+  teams: 'Microsoft Teams',
+  webhook: 'Webhook',
 };
 
 export default function FlagSetsPage() {
@@ -110,6 +188,40 @@ export default function FlagSetsPage() {
   const [formRetrieverUrl, setFormRetrieverUrl] = useState('');
   const [formPollingInterval, setFormPollingInterval] = useState('30000');
   const [formIsDefault, setFormIsDefault] = useState(false);
+
+  // Additional retriever fields
+  const [formRetrieverBucket, setFormRetrieverBucket] = useState('');
+  const [formRetrieverItem, setFormRetrieverItem] = useState('');
+  const [formRetrieverRepoSlug, setFormRetrieverRepoSlug] = useState('');
+  const [formRetrieverBranch, setFormRetrieverBranch] = useState('main');
+  const [formRetrieverToken, setFormRetrieverToken] = useState('');
+  const [formRetrieverNamespace, setFormRetrieverNamespace] = useState('default');
+  const [formRetrieverConfigmap, setFormRetrieverConfigmap] = useState('');
+  const [formRetrieverConnString, setFormRetrieverConnString] = useState('');
+  const [formRetrieverDatabase, setFormRetrieverDatabase] = useState('');
+  const [formRetrieverCollection, setFormRetrieverCollection] = useState('');
+  const [formRetrieverPrefix, setFormRetrieverPrefix] = useState('');
+
+  // Exporter form state
+  const [formExporterEnabled, setFormExporterEnabled] = useState(false);
+  const [formExporterKind, setFormExporterKind] = useState<ExporterKind>('webhook');
+  const [formExporterEndpoint, setFormExporterEndpoint] = useState('');
+  const [formExporterFlushInterval, setFormExporterFlushInterval] = useState('60000');
+  const [formExporterBucket, setFormExporterBucket] = useState('');
+  const [formExporterTopic, setFormExporterTopic] = useState('');
+  const [formExporterBrokers, setFormExporterBrokers] = useState('');
+  const [formExporterQueueUrl, setFormExporterQueueUrl] = useState('');
+
+  // Notifier form state
+  const [formNotifierEnabled, setFormNotifierEnabled] = useState(false);
+  const [formNotifierKind, setFormNotifierKind] = useState<NotifierKind>('slack');
+  const [formNotifierSlackUrl, setFormNotifierSlackUrl] = useState('');
+  const [formNotifierDiscordUrl, setFormNotifierDiscordUrl] = useState('');
+  const [formNotifierTeamsUrl, setFormNotifierTeamsUrl] = useState('');
+  const [formNotifierWebhookUrl, setFormNotifierWebhookUrl] = useState('');
+
+  // Advanced section toggle
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Fetch flag sets
   const flagSetsQuery = useQuery({
@@ -250,6 +362,35 @@ export default function FlagSetsPage() {
     setFormRetrieverUrl('');
     setFormPollingInterval('30000');
     setFormIsDefault(false);
+    // Retriever fields
+    setFormRetrieverBucket('');
+    setFormRetrieverItem('');
+    setFormRetrieverRepoSlug('');
+    setFormRetrieverBranch('main');
+    setFormRetrieverToken('');
+    setFormRetrieverNamespace('default');
+    setFormRetrieverConfigmap('');
+    setFormRetrieverConnString('');
+    setFormRetrieverDatabase('');
+    setFormRetrieverCollection('');
+    setFormRetrieverPrefix('');
+    // Exporter fields
+    setFormExporterEnabled(false);
+    setFormExporterKind('webhook');
+    setFormExporterEndpoint('');
+    setFormExporterFlushInterval('60000');
+    setFormExporterBucket('');
+    setFormExporterTopic('');
+    setFormExporterBrokers('');
+    setFormExporterQueueUrl('');
+    // Notifier fields
+    setFormNotifierEnabled(false);
+    setFormNotifierKind('slack');
+    setFormNotifierSlackUrl('');
+    setFormNotifierDiscordUrl('');
+    setFormNotifierTeamsUrl('');
+    setFormNotifierWebhookUrl('');
+    setShowAdvanced(false);
   };
 
   const openEditDialog = (flagSet: FlagSet) => {
@@ -260,6 +401,48 @@ export default function FlagSetsPage() {
     setFormRetrieverUrl(flagSet.retriever.url || '');
     setFormPollingInterval(String(flagSet.retriever.pollingInterval || 30000));
     setFormIsDefault(flagSet.isDefault);
+
+    // Additional retriever fields
+    setFormRetrieverBucket(flagSet.retriever.bucket || '');
+    setFormRetrieverItem(flagSet.retriever.item || '');
+    setFormRetrieverRepoSlug(flagSet.retriever.repositorySlug || '');
+    setFormRetrieverBranch(flagSet.retriever.branch || 'main');
+    setFormRetrieverToken(flagSet.retriever.token || '');
+    setFormRetrieverNamespace(flagSet.retriever.namespace || 'default');
+    setFormRetrieverConfigmap(flagSet.retriever.configmap || '');
+    setFormRetrieverConnString(flagSet.retriever.connectionString || '');
+    setFormRetrieverDatabase(flagSet.retriever.database || '');
+    setFormRetrieverCollection(flagSet.retriever.collection || '');
+    setFormRetrieverPrefix(flagSet.retriever.prefix || '');
+
+    // Exporter
+    if (flagSet.exporter) {
+      setFormExporterEnabled(true);
+      setFormExporterKind((flagSet.exporter.kind as ExporterKind) || 'webhook');
+      setFormExporterEndpoint(flagSet.exporter.endpointUrl || '');
+      setFormExporterFlushInterval(String(flagSet.exporter.flushInterval || 60000));
+      setFormExporterBucket(flagSet.exporter.bucket || '');
+      setFormExporterTopic(flagSet.exporter.topic || '');
+      setFormExporterBrokers(flagSet.exporter.brokers || '');
+      setFormExporterQueueUrl(flagSet.exporter.queueUrl || '');
+      setShowAdvanced(true);
+    } else {
+      setFormExporterEnabled(false);
+    }
+
+    // Notifier
+    if (flagSet.notifier) {
+      setFormNotifierEnabled(true);
+      setFormNotifierKind((flagSet.notifier.kind as NotifierKind) || 'slack');
+      setFormNotifierSlackUrl(flagSet.notifier.slackWebhookUrl || '');
+      setFormNotifierDiscordUrl(flagSet.notifier.discordWebhookUrl || '');
+      setFormNotifierTeamsUrl(flagSet.notifier.teamsWebhookUrl || '');
+      setFormNotifierWebhookUrl(flagSet.notifier.endpointUrl || '');
+      setShowAdvanced(true);
+    } else {
+      setFormNotifierEnabled(false);
+    }
+
     setEditingFlagSet(flagSet);
   };
 
@@ -269,16 +452,105 @@ export default function FlagSetsPage() {
       pollingInterval: parseInt(formPollingInterval) || 30000,
     };
 
-    if (formRetrieverKind === 'file') {
-      retriever.path = formRetrieverPath;
-    } else if (formRetrieverKind === 'http') {
-      retriever.url = formRetrieverUrl;
+    // Set retriever-specific fields based on kind
+    switch (formRetrieverKind) {
+      case 'file':
+        retriever.path = formRetrieverPath;
+        break;
+      case 'http':
+        retriever.url = formRetrieverUrl;
+        break;
+      case 's3':
+      case 'gcs':
+      case 'azure':
+        retriever.bucket = formRetrieverBucket;
+        retriever.item = formRetrieverItem;
+        break;
+      case 'github':
+      case 'gitlab':
+      case 'bitbucket':
+        retriever.repositorySlug = formRetrieverRepoSlug;
+        retriever.branch = formRetrieverBranch;
+        retriever.path = formRetrieverPath;
+        if (formRetrieverToken) retriever.token = formRetrieverToken;
+        break;
+      case 'kubernetes':
+        retriever.namespace = formRetrieverNamespace;
+        retriever.configmap = formRetrieverConfigmap;
+        break;
+      case 'mongodb':
+        retriever.connectionString = formRetrieverConnString;
+        retriever.database = formRetrieverDatabase;
+        retriever.collection = formRetrieverCollection;
+        break;
+      case 'redis':
+        retriever.connectionString = formRetrieverConnString;
+        retriever.prefix = formRetrieverPrefix;
+        break;
+      case 'postgresql':
+        retriever.connectionString = formRetrieverConnString;
+        break;
+    }
+
+    // Build exporter if enabled
+    let exporter: FlagSetExporter | undefined;
+    if (formExporterEnabled) {
+      exporter = {
+        kind: formExporterKind,
+        flushInterval: parseInt(formExporterFlushInterval) || 60000,
+      };
+
+      switch (formExporterKind) {
+        case 'webhook':
+          exporter.endpointUrl = formExporterEndpoint;
+          break;
+        case 's3':
+        case 'gcs':
+        case 'azure':
+          exporter.bucket = formExporterBucket;
+          break;
+        case 'kafka':
+          exporter.topic = formExporterTopic;
+          exporter.brokers = formExporterBrokers;
+          break;
+        case 'kinesis':
+        case 'pubsub':
+          exporter.topic = formExporterTopic;
+          break;
+        case 'sqs':
+          exporter.queueUrl = formExporterQueueUrl;
+          break;
+      }
+    }
+
+    // Build notifier if enabled
+    let notifier: FlagSetNotifier | undefined;
+    if (formNotifierEnabled) {
+      notifier = {
+        kind: formNotifierKind,
+      };
+      switch (formNotifierKind) {
+        case 'slack':
+          notifier.slackWebhookUrl = formNotifierSlackUrl;
+          break;
+        case 'discord':
+          notifier.discordWebhookUrl = formNotifierDiscordUrl;
+          break;
+        case 'teams':
+          notifier.teamsWebhookUrl = formNotifierTeamsUrl;
+          break;
+        case 'webhook':
+          notifier.endpointUrl = formNotifierWebhookUrl;
+          break;
+      }
     }
 
     const flagSet: Partial<FlagSet> = {
       name: formName,
       description: formDescription || undefined,
       retriever,
+      exporter,
+      notifier,
       isDefault: formIsDefault,
     };
 
@@ -363,7 +635,7 @@ export default function FlagSetsPage() {
                   className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4"
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-lg">{flagSet.name}</h3>
                       {flagSet.isDefault && (
                         <Badge variant="success" className="text-xs">
@@ -375,6 +647,18 @@ export default function FlagSetsPage() {
                         {retrieverKindIcons[flagSet.retriever.kind as RetrieverKind]}
                         <span className="ml-1">{retrieverKindLabels[flagSet.retriever.kind as RetrieverKind] || flagSet.retriever.kind}</span>
                       </Badge>
+                      {flagSet.exporter && (
+                        <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                          <Upload className="h-3 w-3 mr-1" />
+                          Exporter
+                        </Badge>
+                      )}
+                      {flagSet.notifier && (
+                        <Badge variant="secondary" className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                          <Bell className="h-3 w-3 mr-1" />
+                          Notifier
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -550,25 +834,43 @@ export default function FlagSetsPage() {
 
             <div>
               <Label>Retriever Type</Label>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {(['file', 'http'] as RetrieverKind[]).map((kind) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    onClick={() => setFormRetrieverKind(kind)}
-                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                      formRetrieverKind === kind
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
-                        : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
-                    }`}
-                  >
-                    {retrieverKindIcons[kind]}
-                    <span className="text-sm font-medium">{retrieverKindLabels[kind]}</span>
-                  </button>
-                ))}
-              </div>
+              <select
+                value={formRetrieverKind}
+                onChange={(e) => setFormRetrieverKind(e.target.value as RetrieverKind)}
+                className="mt-2 flex h-10 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+              >
+                <optgroup label="Local">
+                  <option value="file">File System</option>
+                </optgroup>
+                <optgroup label="Remote">
+                  <option value="http">HTTP(S)</option>
+                </optgroup>
+                <optgroup label="Cloud Storage">
+                  <option value="s3">AWS S3</option>
+                  <option value="gcs">Google Cloud Storage</option>
+                  <option value="azure">Azure Blob Storage</option>
+                </optgroup>
+                <optgroup label="Git Repositories">
+                  <option value="github">GitHub</option>
+                  <option value="gitlab">GitLab</option>
+                  <option value="bitbucket">Bitbucket</option>
+                </optgroup>
+                <optgroup label="Container">
+                  <option value="kubernetes">Kubernetes ConfigMap</option>
+                </optgroup>
+                <optgroup label="Databases">
+                  <option value="mongodb">MongoDB</option>
+                  <option value="redis">Redis</option>
+                  <option value="postgresql">PostgreSQL</option>
+                </optgroup>
+              </select>
+              <p className="mt-1 text-xs text-zinc-500 flex items-center gap-1">
+                {retrieverKindIcons[formRetrieverKind]}
+                {retrieverKindLabels[formRetrieverKind]}
+              </p>
             </div>
 
+            {/* File retriever */}
             {formRetrieverKind === 'file' && (
               <div>
                 <Label htmlFor="path">File Path</Label>
@@ -584,6 +886,7 @@ export default function FlagSetsPage() {
               </div>
             )}
 
+            {/* HTTP retriever */}
             {formRetrieverKind === 'http' && (
               <div>
                 <Label htmlFor="url">HTTP URL *</Label>
@@ -592,6 +895,180 @@ export default function FlagSetsPage() {
                   value={formRetrieverUrl}
                   onChange={(e) => setFormRetrieverUrl(e.target.value)}
                   placeholder="https://api.example.com/flags"
+                />
+              </div>
+            )}
+
+            {/* S3/GCS/Azure retriever */}
+            {['s3', 'gcs', 'azure'].includes(formRetrieverKind) && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="bucket">Bucket Name *</Label>
+                  <Input
+                    id="bucket"
+                    value={formRetrieverBucket}
+                    onChange={(e) => setFormRetrieverBucket(e.target.value)}
+                    placeholder="my-feature-flags-bucket"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="item">Object/Item Path *</Label>
+                  <Input
+                    id="item"
+                    value={formRetrieverItem}
+                    onChange={(e) => setFormRetrieverItem(e.target.value)}
+                    placeholder="flags/config.yaml"
+                  />
+                </div>
+                <p className="text-xs text-zinc-500">
+                  {formRetrieverKind === 's3' && 'Configure AWS credentials via environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)'}
+                  {formRetrieverKind === 'gcs' && 'Configure GCP credentials via GOOGLE_APPLICATION_CREDENTIALS'}
+                  {formRetrieverKind === 'azure' && 'Configure Azure credentials via environment variables'}
+                </p>
+              </div>
+            )}
+
+            {/* GitHub/GitLab/Bitbucket retriever */}
+            {['github', 'gitlab', 'bitbucket'].includes(formRetrieverKind) && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="repoSlug">Repository Slug *</Label>
+                  <Input
+                    id="repoSlug"
+                    value={formRetrieverRepoSlug}
+                    onChange={(e) => setFormRetrieverRepoSlug(e.target.value)}
+                    placeholder={formRetrieverKind === 'github' ? 'owner/repo' : 'project-id'}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="branch">Branch</Label>
+                    <Input
+                      id="branch"
+                      value={formRetrieverBranch}
+                      onChange={(e) => setFormRetrieverBranch(e.target.value)}
+                      placeholder="main"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="filePath">File Path *</Label>
+                    <Input
+                      id="filePath"
+                      value={formRetrieverPath}
+                      onChange={(e) => setFormRetrieverPath(e.target.value)}
+                      placeholder="config/flags.yaml"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="token">Access Token</Label>
+                  <Input
+                    id="token"
+                    type="password"
+                    value={formRetrieverToken}
+                    onChange={(e) => setFormRetrieverToken(e.target.value)}
+                    placeholder="ghp_xxxx or glpat-xxxx"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">Required for private repositories</p>
+                </div>
+              </div>
+            )}
+
+            {/* Kubernetes retriever */}
+            {formRetrieverKind === 'kubernetes' && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="namespace">Namespace</Label>
+                  <Input
+                    id="namespace"
+                    value={formRetrieverNamespace}
+                    onChange={(e) => setFormRetrieverNamespace(e.target.value)}
+                    placeholder="default"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="configmap">ConfigMap Name *</Label>
+                  <Input
+                    id="configmap"
+                    value={formRetrieverConfigmap}
+                    onChange={(e) => setFormRetrieverConfigmap(e.target.value)}
+                    placeholder="feature-flags-config"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* MongoDB retriever */}
+            {formRetrieverKind === 'mongodb' && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="connString">Connection String *</Label>
+                  <Input
+                    id="connString"
+                    type="password"
+                    value={formRetrieverConnString}
+                    onChange={(e) => setFormRetrieverConnString(e.target.value)}
+                    placeholder="mongodb://localhost:27017"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="database">Database *</Label>
+                    <Input
+                      id="database"
+                      value={formRetrieverDatabase}
+                      onChange={(e) => setFormRetrieverDatabase(e.target.value)}
+                      placeholder="featureflags"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="collection">Collection *</Label>
+                    <Input
+                      id="collection"
+                      value={formRetrieverCollection}
+                      onChange={(e) => setFormRetrieverCollection(e.target.value)}
+                      placeholder="flags"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Redis retriever */}
+            {formRetrieverKind === 'redis' && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="connString">Connection String *</Label>
+                  <Input
+                    id="connString"
+                    type="password"
+                    value={formRetrieverConnString}
+                    onChange={(e) => setFormRetrieverConnString(e.target.value)}
+                    placeholder="redis://localhost:6379"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="prefix">Key Prefix</Label>
+                  <Input
+                    id="prefix"
+                    value={formRetrieverPrefix}
+                    onChange={(e) => setFormRetrieverPrefix(e.target.value)}
+                    placeholder="goff:"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* PostgreSQL retriever */}
+            {formRetrieverKind === 'postgresql' && (
+              <div>
+                <Label htmlFor="connString">Connection String *</Label>
+                <Input
+                  id="connString"
+                  type="password"
+                  value={formRetrieverConnString}
+                  onChange={(e) => setFormRetrieverConnString(e.target.value)}
+                  placeholder="postgres://user:pass@localhost:5432/dbname"
                 />
               </div>
             )}
@@ -619,6 +1096,268 @@ export default function FlagSetsPage() {
                 Set as default flag set
               </Label>
             </div>
+
+            {/* Advanced Settings Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+            >
+              {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <span>Advanced Settings (Exporter & Notifier)</span>
+            </button>
+
+            {showAdvanced && (
+              <div className="space-y-4 border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                {/* Exporter Configuration */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-4 w-4 text-zinc-500" />
+                    <span className="text-sm font-medium">Data Exporter</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="exporterEnabled"
+                      checked={formExporterEnabled}
+                      onChange={(e) => setFormExporterEnabled(e.target.checked)}
+                      className="rounded"
+                    />
+                    <Label htmlFor="exporterEnabled" className="cursor-pointer text-sm">
+                      Enable data export (evaluation events)
+                    </Label>
+                  </div>
+
+                  {formExporterEnabled && (
+                    <div className="space-y-3 ml-6">
+                      <div>
+                        <Label>Exporter Type</Label>
+                        <select
+                          value={formExporterKind}
+                          onChange={(e) => setFormExporterKind(e.target.value as ExporterKind)}
+                          className="mt-2 flex h-10 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                        >
+                          <optgroup label="Basic">
+                            <option value="webhook">Webhook</option>
+                            <option value="file">File System</option>
+                            <option value="log">Application Log</option>
+                          </optgroup>
+                          <optgroup label="Cloud Storage">
+                            <option value="s3">AWS S3</option>
+                            <option value="gcs">Google Cloud Storage</option>
+                            <option value="azure">Azure Blob Storage</option>
+                          </optgroup>
+                          <optgroup label="Message Queues">
+                            <option value="kafka">Apache Kafka</option>
+                            <option value="kinesis">AWS Kinesis</option>
+                            <option value="pubsub">Google Cloud PubSub</option>
+                            <option value="sqs">AWS SQS</option>
+                          </optgroup>
+                          <optgroup label="Observability">
+                            <option value="opentelemetry">OpenTelemetry</option>
+                          </optgroup>
+                        </select>
+                        <p className="mt-1 text-xs text-zinc-500">{exporterKindLabels[formExporterKind]}</p>
+                      </div>
+
+                      {formExporterKind === 'webhook' && (
+                        <div>
+                          <Label htmlFor="exporterEndpoint">Webhook URL</Label>
+                          <Input
+                            id="exporterEndpoint"
+                            value={formExporterEndpoint}
+                            onChange={(e) => setFormExporterEndpoint(e.target.value)}
+                            placeholder="https://api.example.com/events"
+                          />
+                        </div>
+                      )}
+
+                      {['s3', 'gcs', 'azure'].includes(formExporterKind) && (
+                        <div>
+                          <Label htmlFor="exporterBucket">Bucket Name *</Label>
+                          <Input
+                            id="exporterBucket"
+                            value={formExporterBucket}
+                            onChange={(e) => setFormExporterBucket(e.target.value)}
+                            placeholder="my-evaluation-data-bucket"
+                          />
+                        </div>
+                      )}
+
+                      {formExporterKind === 'kafka' && (
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor="exporterTopic">Kafka Topic *</Label>
+                            <Input
+                              id="exporterTopic"
+                              value={formExporterTopic}
+                              onChange={(e) => setFormExporterTopic(e.target.value)}
+                              placeholder="feature-flag-events"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="exporterBrokers">Brokers</Label>
+                            <Input
+                              id="exporterBrokers"
+                              value={formExporterBrokers}
+                              onChange={(e) => setFormExporterBrokers(e.target.value)}
+                              placeholder="localhost:9092"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {['kinesis', 'pubsub'].includes(formExporterKind) && (
+                        <div>
+                          <Label htmlFor="exporterTopic">
+                            {formExporterKind === 'kinesis' ? 'Stream Name *' : 'Topic Name *'}
+                          </Label>
+                          <Input
+                            id="exporterTopic"
+                            value={formExporterTopic}
+                            onChange={(e) => setFormExporterTopic(e.target.value)}
+                            placeholder={formExporterKind === 'kinesis' ? 'feature-flag-stream' : 'projects/*/topics/feature-flags'}
+                          />
+                        </div>
+                      )}
+
+                      {formExporterKind === 'sqs' && (
+                        <div>
+                          <Label htmlFor="exporterQueueUrl">Queue URL *</Label>
+                          <Input
+                            id="exporterQueueUrl"
+                            value={formExporterQueueUrl}
+                            onChange={(e) => setFormExporterQueueUrl(e.target.value)}
+                            placeholder="https://sqs.us-east-1.amazonaws.com/123456789/my-queue"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <Label htmlFor="exporterFlushInterval">Flush Interval (ms)</Label>
+                        <Input
+                          id="exporterFlushInterval"
+                          type="number"
+                          value={formExporterFlushInterval}
+                          onChange={(e) => setFormExporterFlushInterval(e.target.value)}
+                          placeholder="60000"
+                        />
+                        <p className="mt-1 text-xs text-zinc-500">
+                          How often to send batched events (default: 60 seconds)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notifier Configuration */}
+                <div className="space-y-3 border-t border-zinc-200 dark:border-zinc-700 pt-3">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-zinc-500" />
+                    <span className="text-sm font-medium">Change Notifier</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="notifierEnabled"
+                      checked={formNotifierEnabled}
+                      onChange={(e) => setFormNotifierEnabled(e.target.checked)}
+                      className="rounded"
+                    />
+                    <Label htmlFor="notifierEnabled" className="cursor-pointer text-sm">
+                      Enable flag change notifications
+                    </Label>
+                  </div>
+
+                  {formNotifierEnabled && (
+                    <div className="space-y-3 ml-6">
+                      <div>
+                        <Label>Notifier Type</Label>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {(['slack', 'discord', 'teams', 'webhook'] as const).map((kind) => (
+                            <button
+                              key={kind}
+                              type="button"
+                              onClick={() => setFormNotifierKind(kind)}
+                              className={`p-2 rounded-lg border-2 transition-all text-sm flex items-center justify-center gap-2 ${
+                                formNotifierKind === kind
+                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
+                              }`}
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              {notifierKindLabels[kind]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {formNotifierKind === 'slack' && (
+                        <div>
+                          <Label htmlFor="notifierSlackUrl">Slack Webhook URL</Label>
+                          <Input
+                            id="notifierSlackUrl"
+                            value={formNotifierSlackUrl}
+                            onChange={(e) => setFormNotifierSlackUrl(e.target.value)}
+                            placeholder="https://hooks.slack.com/services/..."
+                          />
+                          <p className="mt-1 text-xs text-zinc-500">
+                            Create an incoming webhook in your Slack workspace settings
+                          </p>
+                        </div>
+                      )}
+
+                      {formNotifierKind === 'discord' && (
+                        <div>
+                          <Label htmlFor="notifierDiscordUrl">Discord Webhook URL</Label>
+                          <Input
+                            id="notifierDiscordUrl"
+                            value={formNotifierDiscordUrl}
+                            onChange={(e) => setFormNotifierDiscordUrl(e.target.value)}
+                            placeholder="https://discord.com/api/webhooks/..."
+                          />
+                          <p className="mt-1 text-xs text-zinc-500">
+                            Create a webhook in your Discord server&apos;s channel settings
+                          </p>
+                        </div>
+                      )}
+
+                      {formNotifierKind === 'teams' && (
+                        <div>
+                          <Label htmlFor="notifierTeamsUrl">Microsoft Teams Webhook URL</Label>
+                          <Input
+                            id="notifierTeamsUrl"
+                            value={formNotifierTeamsUrl}
+                            onChange={(e) => setFormNotifierTeamsUrl(e.target.value)}
+                            placeholder="https://outlook.office.com/webhook/..."
+                          />
+                          <p className="mt-1 text-xs text-zinc-500">
+                            Create an incoming webhook connector in your Teams channel
+                          </p>
+                        </div>
+                      )}
+
+                      {formNotifierKind === 'webhook' && (
+                        <div>
+                          <Label htmlFor="notifierWebhookUrl">Webhook URL</Label>
+                          <Input
+                            id="notifierWebhookUrl"
+                            value={formNotifierWebhookUrl}
+                            onChange={(e) => setFormNotifierWebhookUrl(e.target.value)}
+                            placeholder="https://api.example.com/notifications"
+                          />
+                          <p className="mt-1 text-xs text-zinc-500">
+                            Custom webhook endpoint that receives JSON payloads on flag changes
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
         <DialogFooter>

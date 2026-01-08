@@ -124,43 +124,44 @@ export interface GenerateSnippetOptions {
   flagType: 'boolean' | 'string' | 'number' | 'json';
   defaultValue: string;
   relayProxyUrl: string;
+  apiKey?: string;
 }
 
 export function generateCodeSnippet(
   language: SDKLanguage,
   options: GenerateSnippetOptions
 ): string {
-  const { flagKey, flagType, defaultValue, relayProxyUrl } = options;
+  const { flagKey, flagType, defaultValue, relayProxyUrl, apiKey } = options;
 
   switch (language) {
     case 'go':
-      return generateGoSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateGoSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'java':
-      return generateJavaSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateJavaSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'dotnet':
-      return generateDotNetSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateDotNetSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'python':
-      return generatePythonSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generatePythonSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'node':
-      return generateNodeSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateNodeSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'php':
-      return generatePhpSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generatePhpSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'ruby':
-      return generateRubySnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateRubySnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'javascript':
-      return generateJavaScriptSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateJavaScriptSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'react':
-      return generateReactSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateReactSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'swift':
-      return generateSwiftSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateSwiftSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     case 'kotlin':
-      return generateKotlinSnippet(flagKey, flagType, defaultValue, relayProxyUrl);
+      return generateKotlinSnippet(flagKey, flagType, defaultValue, relayProxyUrl, apiKey);
     default:
       return '// Code snippet not available';
   }
 }
 
-function generateGoSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateGoSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'BoolValue',
     string: 'StringValue',
@@ -169,6 +170,11 @@ function generateGoSnippet(flagKey: string, flagType: string, defaultValue: stri
   };
   const method = methodMap[flagType] || 'BoolValue';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `"${defaultValue}"` : defaultValue;
+
+  const apiKeyConfig = apiKey
+    ? `
+		APIKey: "${apiKey}", // Flag Set API Key`
+    : '';
 
   return `package main
 
@@ -181,7 +187,7 @@ import (
 func main() {
 	// Initialize the provider
 	provider, _ := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
-		Endpoint: "${relayProxyUrl}",
+		Endpoint: "${relayProxyUrl}",${apiKeyConfig}
 	})
 	of.SetProvider(provider)
 	client := of.NewClient("my-app")
@@ -205,7 +211,7 @@ func main() {
 }`;
 }
 
-function generateJavaSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateJavaSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'getBooleanValue',
     string: 'getStringValue',
@@ -215,6 +221,9 @@ function generateJavaSnippet(flagKey: string, flagType: string, defaultValue: st
   const method = methodMap[flagType] || 'getBooleanValue';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `"${defaultValue}"` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `
+                .apiKey("${apiKey}") // Flag Set API Key` : '';
+
   return `import dev.openfeature.contrib.providers.gofeatureflag.*;
 import dev.openfeature.sdk.*;
 
@@ -223,7 +232,7 @@ public class FeatureFlags {
         // Initialize the provider
         FeatureProvider provider = new GoFeatureFlagProvider(
             GoFeatureFlagProviderOptions.builder()
-                .endpoint("${relayProxyUrl}")
+                .endpoint("${relayProxyUrl}")${apiKeyConfig}
                 .build()
         );
         OpenFeatureAPI.getInstance().setProviderAndWait(provider);
@@ -249,7 +258,7 @@ public class FeatureFlags {
 }`;
 }
 
-function generateDotNetSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateDotNetSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'GetBooleanValueAsync',
     string: 'GetStringValueAsync',
@@ -259,13 +268,16 @@ function generateDotNetSnippet(flagKey: string, flagType: string, defaultValue: 
   const method = methodMap[flagType] || 'GetBooleanValueAsync';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `"${defaultValue}"` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `,
+    ApiKey = "${apiKey}" // Flag Set API Key` : '';
+
   return `using OpenFeature;
 using OpenFeature.Contrib.GOFeatureFlag;
 
 // Initialize the provider
 var provider = new GoFeatureFlagProvider(new GoFeatureFlagProviderOptions
 {
-    Endpoint = "${relayProxyUrl}"
+    Endpoint = "${relayProxyUrl}"${apiKeyConfig}
 });
 await Api.Instance.SetProviderAsync(provider);
 var client = Api.Instance.GetClient("my-app");
@@ -287,7 +299,7 @@ if (value)
 }`;
 }
 
-function generatePythonSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generatePythonSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'get_boolean_value',
     string: 'get_string_value',
@@ -297,6 +309,8 @@ function generatePythonSnippet(flagKey: string, flagType: string, defaultValue: 
   const method = methodMap[flagType] || 'get_boolean_value';
   const defaultVal = flagType === 'boolean' ? (defaultValue === 'true' ? 'True' : 'False') : flagType === 'string' ? `"${defaultValue}"` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `, api_key="${apiKey}"` : '';
+
   return `from gofeatureflag_python_provider.provider import GoFeatureFlagProvider
 from gofeatureflag_python_provider.options import GoFeatureFlagOptions
 from openfeature import api
@@ -304,7 +318,7 @@ from openfeature.evaluation_context import EvaluationContext
 
 # Initialize the provider
 provider = GoFeatureFlagProvider(
-    options=GoFeatureFlagOptions(endpoint="${relayProxyUrl}")
+    options=GoFeatureFlagOptions(endpoint="${relayProxyUrl}"${apiKeyConfig})
 )
 api.set_provider(provider)
 client = api.get_client("my-app")
@@ -331,7 +345,7 @@ if value:
     pass`;
 }
 
-function generateNodeSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateNodeSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'getBooleanValue',
     string: 'getStringValue',
@@ -341,12 +355,15 @@ function generateNodeSnippet(flagKey: string, flagType: string, defaultValue: st
   const method = methodMap[flagType] || 'getBooleanValue';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `'${defaultValue}'` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `
+  apiKey: '${apiKey}', // Flag Set API Key` : '';
+
   return `import { OpenFeature } from '@openfeature/server-sdk';
 import { GoFeatureFlagProvider } from '@openfeature/go-feature-flag-provider';
 
 // Initialize the provider
 const provider = new GoFeatureFlagProvider({
-  endpoint: '${relayProxyUrl}',
+  endpoint: '${relayProxyUrl}',${apiKeyConfig}
 });
 OpenFeature.setProvider(provider);
 const client = OpenFeature.getClient('my-app');
@@ -367,7 +384,7 @@ if (value) {
 }`;
 }
 
-function generatePhpSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generatePhpSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'getBooleanValue',
     string: 'getStringValue',
@@ -377,6 +394,9 @@ function generatePhpSnippet(flagKey: string, flagType: string, defaultValue: str
   const method = methodMap[flagType] || 'getBooleanValue';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `'${defaultValue}'` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `
+    'apiKey' => '${apiKey}', // Flag Set API Key` : '';
+
   return `<?php
 use OpenFeature\\OpenFeatureAPI;
 use OpenFeature\\Providers\\GoFeatureFlag\\GoFeatureFlagProvider;
@@ -384,7 +404,7 @@ use OpenFeature\\implementation\\flags\\MutableEvaluationContext;
 
 // Initialize the provider
 $provider = new GoFeatureFlagProvider([
-    'endpoint' => '${relayProxyUrl}',
+    'endpoint' => '${relayProxyUrl}',${apiKeyConfig}
 ]);
 $api = OpenFeatureAPI::getInstance();
 $api->setProvider($provider);
@@ -405,7 +425,7 @@ if ($value) {
 }`;
 }
 
-function generateRubySnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateRubySnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'fetch_boolean_value',
     string: 'fetch_string_value',
@@ -415,12 +435,15 @@ function generateRubySnippet(flagKey: string, flagType: string, defaultValue: st
   const method = methodMap[flagType] || 'fetch_boolean_value';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `'${defaultValue}'` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `,
+  api_key: '${apiKey}' # Flag Set API Key` : '';
+
   return `require 'openfeature/sdk'
 require 'openfeature/go-feature-flag-provider'
 
 # Initialize the provider
 provider = OpenFeature::GoFeatureFlag::Provider.new(
-  endpoint: '${relayProxyUrl}'
+  endpoint: '${relayProxyUrl}'${apiKeyConfig}
 )
 OpenFeature::SDK.configure do |config|
   config.set_provider(provider)
@@ -447,7 +470,7 @@ if value
 end`;
 }
 
-function generateJavaScriptSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateJavaScriptSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'getBooleanValue',
     string: 'getStringValue',
@@ -457,12 +480,15 @@ function generateJavaScriptSnippet(flagKey: string, flagType: string, defaultVal
   const method = methodMap[flagType] || 'getBooleanValue';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `'${defaultValue}'` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `
+  apiKey: '${apiKey}', // Flag Set API Key` : '';
+
   return `import { OpenFeature } from '@openfeature/web-sdk';
 import { GoFeatureFlagWebProvider } from '@openfeature/go-feature-flag-web-provider';
 
 // Initialize the provider
 const provider = new GoFeatureFlagWebProvider({
-  endpoint: '${relayProxyUrl}',
+  endpoint: '${relayProxyUrl}',${apiKeyConfig}
 });
 
 // Set evaluation context (user info)
@@ -484,7 +510,7 @@ if (value) {
 }`;
 }
 
-function generateReactSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateReactSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const hookMap: Record<string, string> = {
     boolean: 'useBooleanFlagValue',
     string: 'useStringFlagValue',
@@ -494,12 +520,15 @@ function generateReactSnippet(flagKey: string, flagType: string, defaultValue: s
   const hook = hookMap[flagType] || 'useBooleanFlagValue';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `'${defaultValue}'` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `
+  apiKey: '${apiKey}', // Flag Set API Key` : '';
+
   return `import { OpenFeatureProvider, ${hook} } from '@openfeature/react-sdk';
 import { GoFeatureFlagWebProvider } from '@openfeature/go-feature-flag-web-provider';
 
 // Initialize the provider (do this once in your app)
 const provider = new GoFeatureFlagWebProvider({
-  endpoint: '${relayProxyUrl}',
+  endpoint: '${relayProxyUrl}',${apiKeyConfig}
 });
 
 // Wrap your app with OpenFeatureProvider
@@ -538,7 +567,7 @@ function MyComponent() {
 }`;
 }
 
-function generateSwiftSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateSwiftSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'getBooleanValue',
     string: 'getStringValue',
@@ -548,12 +577,14 @@ function generateSwiftSnippet(flagKey: string, flagType: string, defaultValue: s
   const method = methodMap[flagType] || 'getBooleanValue';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `"${defaultValue}"` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `, apiKey: "${apiKey}"` : '';
+
   return `import OpenFeature
 import GOFeatureFlagProvider
 
 // Initialize the provider
 let provider = GoFeatureFlagProvider(
-    options: GoFeatureFlagProviderOptions(endpoint: "${relayProxyUrl}")
+    options: GoFeatureFlagProviderOptions(endpoint: "${relayProxyUrl}"${apiKeyConfig})
 )
 
 // Set evaluation context
@@ -573,7 +604,7 @@ if value {
 }`;
 }
 
-function generateKotlinSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string): string {
+function generateKotlinSnippet(flagKey: string, flagType: string, defaultValue: string, relayProxyUrl: string, apiKey?: string): string {
   const methodMap: Record<string, string> = {
     boolean: 'getBooleanValue',
     string: 'getStringValue',
@@ -583,13 +614,15 @@ function generateKotlinSnippet(flagKey: string, flagType: string, defaultValue: 
   const method = methodMap[flagType] || 'getBooleanValue';
   const defaultVal = flagType === 'boolean' ? defaultValue : flagType === 'string' ? `"${defaultValue}"` : defaultValue;
 
+  const apiKeyConfig = apiKey ? `, apiKey = "${apiKey}"` : '';
+
   return `import org.gofeatureflag.openfeature.GoFeatureFlagProvider
 import dev.openfeature.sdk.OpenFeatureAPI
 import dev.openfeature.sdk.MutableContext
 
 // Initialize the provider
 val provider = GoFeatureFlagProvider(
-    options = GoFeatureFlagOptions(endpoint = "${relayProxyUrl}")
+    options = GoFeatureFlagOptions(endpoint = "${relayProxyUrl}"${apiKeyConfig})
 )
 OpenFeatureAPI.setProvider(provider)
 val client = OpenFeatureAPI.getClient("my-app")

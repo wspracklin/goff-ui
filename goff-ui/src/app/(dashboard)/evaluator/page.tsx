@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   XCircle,
   Copy,
+  Layers,
 } from 'lucide-react';
 import {
   Card,
@@ -50,9 +51,11 @@ interface EvaluationResult {
   metadata?: Record<string, unknown>;
 }
 
+type EvaluationMode = 'standard' | 'ofrep';
+
 function EvaluatorContent() {
   const searchParams = useSearchParams();
-  const { isConnected, isDevMode } = useAppStore();
+  const { isConnected, isDevMode, selectedFlagSet } = useAppStore();
 
   const [targetingKey, setTargetingKey] = useState('user-123');
   const [selectedFlag, setSelectedFlag] = useState('');
@@ -62,6 +65,7 @@ function EvaluatorContent() {
   ]);
   const [results, setResults] = useState<EvaluationResult[]>([]);
   const [bulkMode, setBulkMode] = useState(false);
+  const [evaluationMode, setEvaluationMode] = useState<EvaluationMode>('standard');
 
   // Pre-fill flag from URL
   useEffect(() => {
@@ -71,17 +75,42 @@ function EvaluatorContent() {
     }
   }, [searchParams]);
 
-  // In dev mode, fetch from local flags API; otherwise from relay proxy
-  const flagsQuery = useQuery({
-    queryKey: isDevMode ? ['local-flags'] : ['flags-config'],
+  // Fetch flagset info for display
+  const flagSetsQuery = useQuery({
+    queryKey: ['flagsets'],
     queryFn: async () => {
+      const res = await fetch('/api/flagsets');
+      if (!res.ok) throw new Error('Failed to fetch flag sets');
+      const data = await res.json();
+      return data.flagSets as Array<{ id: string; name: string; isDefault: boolean }>;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const selectedFlagSetName = flagSetsQuery.data?.find(fs => fs.id === selectedFlagSet)?.name;
+
+  // Fetch flags from the selected flagset (or relay proxy if no flagset selected)
+  const flagsQuery = useQuery({
+    queryKey: selectedFlagSet ? ['flagset-flags', selectedFlagSet] : (isDevMode ? ['local-flags'] : ['flags-config']),
+    queryFn: async () => {
+      // If a flagset is selected, fetch from that flagset
+      if (selectedFlagSet) {
+        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch flags from flagset');
+        }
+        const data = await response.json();
+        return { flags: data.flags || {} };
+      }
+
+      // No flagset selected - fall back to local/relay proxy
       if (isDevMode) {
         const result = await localFlagAPI.listFlags();
         return { flags: result.flags };
       }
       return goffClient.getFlagConfiguration();
     },
-    enabled: isDevMode || isConnected,
+    enabled: !!selectedFlagSet || isDevMode || isConnected,
   });
 
   // Simple hash function for percentage bucketing in dev mode
@@ -337,23 +366,25 @@ function EvaluatorContent() {
 
   const evaluateMutation = useMutation({
     mutationFn: async () => {
-      // In dev mode, evaluate locally (no relay proxy)
-      if (isDevMode) {
-        const flagsData = flagsQuery.data?.flags || {};
+      // In dev mode or with flagset selected, evaluate locally
+      if (isDevMode || selectedFlagSet) {
+        const flagsData = (flagsQuery.data?.flags || {}) as Record<string, FlagConfiguration | null>;
         const evalKey = targetingKey || 'anonymous';
 
         if (bulkMode || !selectedFlag) {
-          // Show all flags with their evaluated values
-          return Object.entries(flagsData).map(([key, config]) => {
-            const result = evaluateFlagConfig(key, config, evalKey);
-            return {
-              flagKey: key,
-              value: result.value,
-              variationType: result.variation,
-              reason: result.reason,
-              failed: false,
-            };
-          });
+          // Show all flags with their evaluated values (filter out nulls)
+          return Object.entries(flagsData)
+            .filter(([, config]) => config != null)
+            .map(([key, config]) => {
+              const result = evaluateFlagConfig(key, config!, evalKey);
+              return {
+                flagKey: key,
+                value: result.value,
+                variationType: result.variation,
+                reason: result.reason,
+                failed: false,
+              };
+            });
         } else {
           // Single flag evaluation
           const config = flagsData[selectedFlag];
@@ -378,6 +409,55 @@ function EvaluatorContent() {
         }
       }
 
+      // OFREP evaluation mode
+      if (evaluationMode === 'ofrep') {
+        const ofrepContext = {
+          targetingKey,
+          ...customAttributes.reduce(
+            (acc, attr) => {
+              if (attr.key) {
+                acc[attr.key] = attr.value;
+              }
+              return acc;
+            },
+            {} as Record<string, string>
+          ),
+        };
+
+        if (bulkMode || !selectedFlag) {
+          // OFREP bulk evaluation
+          const response = await goffClient.ofrepBulkEvaluate({
+            context: ofrepContext,
+          });
+
+          return response.flags.map((flag) => ({
+            flagKey: flag.key,
+            value: flag.value,
+            variationType: flag.variant,
+            reason: flag.reason,
+            failed: false,
+            metadata: flag.metadata,
+          }));
+        } else {
+          // OFREP single flag evaluation
+          const response = await goffClient.ofrepEvaluateFlag(selectedFlag, {
+            context: ofrepContext,
+          });
+
+          return [
+            {
+              flagKey: response.key,
+              value: response.value,
+              variationType: response.variant,
+              reason: response.reason,
+              failed: false,
+              metadata: response.metadata,
+            },
+          ];
+        }
+      }
+
+      // Standard evaluation mode
       const context = {
         evaluationContext: {
           key: targetingKey,
@@ -501,8 +581,34 @@ function EvaluatorContent() {
         <h2 className="text-2xl font-bold">Flag Evaluator</h2>
         <p className="text-zinc-600 dark:text-zinc-400">
           Test flag evaluations with different contexts
+          {selectedFlagSetName && (
+            <span className="ml-2">
+              <Badge variant="secondary" className="text-xs">
+                <Layers className="h-3 w-3 mr-1" />
+                {selectedFlagSetName}
+              </Badge>
+            </span>
+          )}
         </p>
       </div>
+
+      {/* No flagset selected warning */}
+      {!selectedFlagSet && !isDevMode && (
+        <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+          <CardContent className="pt-6">
+            <div className="flex gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800 dark:text-amber-200">
+                <p className="font-medium mb-1">No Flag Set Selected</p>
+                <p>
+                  Select a flag set from the sidebar to evaluate flags. Without a flag set,
+                  evaluations will use the relay proxy directly (if connected).
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Evaluation Context */}
@@ -547,7 +653,9 @@ function EvaluatorContent() {
               >
                 <option value="">All flags (bulk evaluation)</option>
                 {flagsQuery.data?.flags &&
-                  Object.keys(flagsQuery.data.flags)
+                  Object.entries(flagsQuery.data.flags)
+                    .filter(([, flag]) => flag != null)
+                    .map(([key]) => key)
                     .sort()
                     .map((key) => (
                       <option key={key} value={key}>
@@ -612,6 +720,44 @@ function EvaluatorContent() {
               </div>
             </div>
 
+            {/* Evaluation Mode - Only in Production mode */}
+            {!isDevMode && (
+              <div>
+                <Label>Evaluation Protocol</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEvaluationMode('standard')}
+                    className={`p-2 rounded-lg border-2 transition-all text-sm ${
+                      evaluationMode === 'standard'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                        : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
+                    }`}
+                  >
+                    <div className="font-medium">Standard</div>
+                    <div className="text-xs text-zinc-500">GO Feature Flag API</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEvaluationMode('ofrep')}
+                    className={`p-2 rounded-lg border-2 transition-all text-sm ${
+                      evaluationMode === 'ofrep'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
+                        : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300'
+                    }`}
+                  >
+                    <div className="font-medium">OFREP</div>
+                    <div className="text-xs text-zinc-500">OpenFeature Protocol</div>
+                  </button>
+                </div>
+                {evaluationMode === 'ofrep' && (
+                  <p className="mt-2 text-xs text-purple-600 dark:text-purple-400">
+                    Using OpenFeature Remote Evaluation Protocol (OFREP) endpoints
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-2 pt-4">
               <Button
                 onClick={() => evaluateMutation.mutate()}
@@ -623,7 +769,7 @@ function EvaluatorContent() {
                 ) : (
                   <Play className="h-4 w-4 mr-2" />
                 )}
-                Evaluate
+                Evaluate {evaluationMode === 'ofrep' && !isDevMode ? '(OFREP)' : ''}
               </Button>
               <Button
                 variant="outline"
@@ -737,7 +883,7 @@ function EvaluatorContent() {
           <CardTitle>Quick Reference</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div>
               <h4 className="font-medium mb-2">Evaluation Reasons</h4>
               <ul className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
@@ -799,12 +945,33 @@ function EvaluatorContent() {
               </ul>
             </div>
             <div>
+              <h4 className="font-medium mb-2">OFREP Endpoints</h4>
+              <ul className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
+                <li>
+                  <code className="text-xs bg-purple-100 dark:bg-purple-900 px-1 rounded text-purple-700 dark:text-purple-300">
+                    /ofrep/v1/evaluate/flags
+                  </code>{' '}
+                  - Bulk
+                </li>
+                <li>
+                  <code className="text-xs bg-purple-100 dark:bg-purple-900 px-1 rounded text-purple-700 dark:text-purple-300">
+                    /ofrep/v1/evaluate/flags/:key
+                  </code>{' '}
+                  - Single
+                </li>
+                <li className="pt-1 text-xs">
+                  OpenFeature Remote Evaluation Protocol for standardized flag evaluation across providers
+                </li>
+              </ul>
+            </div>
+            <div>
               <h4 className="font-medium mb-2">Tips</h4>
               <ul className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
                 <li>Use consistent targeting keys for A/B testing</li>
                 <li>Add custom attributes for targeting rules</li>
                 <li>Default values should match the flag type</li>
                 <li>Check the reason to debug unexpected values</li>
+                <li>Use OFREP for OpenFeature SDK compatibility</li>
               </ul>
             </div>
           </div>

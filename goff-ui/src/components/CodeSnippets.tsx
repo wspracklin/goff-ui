@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Copy, Check, Terminal, Monitor, Server } from 'lucide-react';
+import { Copy, Check, Terminal, Monitor, Server, Key, Layers } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,8 @@ interface CodeSnippetsProps {
   flagType?: 'boolean' | 'string' | 'number' | 'json';
   defaultValue?: string;
   relayProxyUrl?: string;
+  apiKey?: string;
+  flagSetName?: string;
 }
 
 // Language icons as simple text/emoji for now
@@ -43,6 +45,8 @@ export function CodeSnippets({
   flagType = 'boolean',
   defaultValue = 'false',
   relayProxyUrl = 'http://localhost:1031',
+  apiKey,
+  flagSetName,
 }: CodeSnippetsProps) {
   const { enabledSDKs, codeTheme } = useSDKSettings();
   const [copiedLanguage, setCopiedLanguage] = useState<string | null>(null);
@@ -76,6 +80,7 @@ export function CodeSnippets({
     flagType,
     defaultValue,
     relayProxyUrl,
+    apiKey,
   };
 
   const handleCopy = async (language: SDKLanguage, code: string) => {
@@ -112,7 +117,19 @@ export function CodeSnippets({
           Code Snippets
         </CardTitle>
         <CardDescription>
-          Copy code to integrate this flag in your application
+          <span>Copy code to integrate this flag in your application</span>
+          {apiKey && flagSetName && (
+            <div className="flex items-center gap-3 mt-2">
+              <div className="flex items-center gap-1.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full px-2.5 py-1">
+                <Layers className="h-3 w-3" />
+                <span>{flagSetName}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full px-2.5 py-1">
+                <Key className="h-3 w-3" />
+                <span>API Key configured</span>
+              </div>
+            </div>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -110,34 +110,29 @@ function FlagsPageContent() {
     router.replace(`/flags${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false });
   };
 
-  // In dev mode, fetch from local flags file; otherwise fetch by flagset
+  // Fetch flags from the selected flagset
   const flagsQuery = useQuery({
-    queryKey: isDevMode ? ['local-flags'] : ['flagset-flags', selectedFlagSet],
+    queryKey: ['flagset-flags', selectedFlagSet],
     queryFn: async () => {
-      if (isDevMode) {
-        const result = await localFlagAPI.listFlags();
-        return { flags: result.flags };
+      if (!selectedFlagSet) {
+        return { flags: {} };
       }
-      // Fetch flags for the selected flagset
-      if (selectedFlagSet) {
-        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch flags');
-        }
-        const data = await response.json();
-        return { flags: data.flags || {} };
+      const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch flags');
       }
-      // Fallback to relay proxy if no flagset selected
-      return goffClient.getFlagConfiguration();
+      const data = await response.json();
+      return { flags: data.flags || {}, flagSet: data.flagSet };
     },
-    enabled: isDevMode || (isConnected && !!selectedFlagSet),
+    enabled: !!selectedFlagSet,
     refetchInterval: 30000,
   });
 
   // Helper to determine rollout type
   type RolloutType = 'single' | 'percentage' | 'progressive' | 'scheduled' | 'experimentation';
 
-  const getRolloutType = (flag: LocalFlagConfig | FlagConfiguration): RolloutType => {
+  const getRolloutType = (flag: LocalFlagConfig | FlagConfiguration | null | undefined): RolloutType => {
+    if (!flag) return 'single';
     // Check for scheduled rollout with actual steps that have dates
     if (flag.scheduledRollout && flag.scheduledRollout.length > 0) {
       const hasValidSteps = flag.scheduledRollout.some(step => step.date);
@@ -161,12 +156,14 @@ function FlagsPageContent() {
   };
 
   // Helper to check if flag uses percentage rollout
-  const isPercentageRollout = (flag: LocalFlagConfig | FlagConfiguration): boolean => {
+  const isPercentageRollout = (flag: LocalFlagConfig | FlagConfiguration | null | undefined): boolean => {
+    if (!flag) return false;
     return !!(flag.defaultRule?.percentage && Object.keys(flag.defaultRule.percentage).length > 0);
   };
 
   // Helper to determine if a flag is currently "on" based on its configuration
-  const isFlagOn = (flag: LocalFlagConfig | FlagConfiguration): boolean => {
+  const isFlagOn = (flag: LocalFlagConfig | FlagConfiguration | null | undefined): boolean => {
+    if (!flag) return false;
     // Check if flag is entirely disabled via the disable field
     if (flag.disable) return false;
 
@@ -188,7 +185,8 @@ function FlagsPageContent() {
   };
 
   // Helper to get the "on" variation percentage for display
-  const getOnPercentage = (flag: LocalFlagConfig | FlagConfiguration): number => {
+  const getOnPercentage = (flag: LocalFlagConfig | FlagConfiguration | null | undefined): number => {
+    if (!flag) return 0;
     if (!isPercentageRollout(flag)) return isFlagOn(flag) ? 100 : 0;
 
     const onVariations = ['enabled', 'on', 'true', 'yes', 'active'];
@@ -204,7 +202,8 @@ function FlagsPageContent() {
   };
 
   // Helper to get the "on" and "off" variation names from a flag
-  const getToggleVariations = (flag: LocalFlagConfig | FlagConfiguration): { on: string; off: string } => {
+  const getToggleVariations = (flag: LocalFlagConfig | FlagConfiguration | null | undefined): { on: string; off: string } => {
+    if (!flag) return { on: 'enabled', off: 'disabled' };
     const variations = flag.variations ? Object.keys(flag.variations) : [];
 
     // Look for common "on" variation names
@@ -217,44 +216,83 @@ function FlagsPageContent() {
     return { on: onVariation, off: offVariation };
   };
 
+  // Helper to create a clean flag config with only valid properties
+  const cleanFlagConfig = (config: LocalFlagConfig | FlagConfiguration): LocalFlagConfig => {
+    const clean: LocalFlagConfig = {};
+
+    // Only include defined properties
+    if (config.variations !== undefined) clean.variations = config.variations;
+    if (config.defaultRule !== undefined) clean.defaultRule = config.defaultRule;
+    if (config.targeting !== undefined) clean.targeting = config.targeting;
+    if (config.disable !== undefined) clean.disable = config.disable;
+    if (config.trackEvents !== undefined) clean.trackEvents = config.trackEvents;
+    if (config.version !== undefined) clean.version = config.version;
+    if (config.metadata !== undefined) clean.metadata = config.metadata;
+    if (config.scheduledRollout !== undefined) clean.scheduledRollout = config.scheduledRollout;
+    if (config.experimentation !== undefined) clean.experimentation = config.experimentation;
+    if (config.bucketingKey !== undefined) clean.bucketingKey = config.bucketingKey;
+
+    return clean;
+  };
+
   // Mutation to toggle flag enabled/disabled state
   const toggleFlagMutation = useMutation({
-    mutationFn: async ({ key, currentConfig, turnOn }: {
+    mutationFn: async ({ key, currentConfig, turnOn, flagSetId }: {
       key: string;
       currentConfig: LocalFlagConfig | FlagConfiguration;
       turnOn: boolean;
+      flagSetId: string | null;
     }) => {
       const rolloutType = getRolloutType(currentConfig);
+
+      // Start with a clean copy of the current config
+      const baseConfig = cleanFlagConfig(currentConfig);
+      let updatedConfig: LocalFlagConfig;
 
       // For complex rollout types (percentage, progressive, scheduled, experimentation),
       // use the `disable` field to preserve the rollout configuration
       if (['percentage', 'progressive', 'scheduled', 'experimentation'].includes(rolloutType)) {
-        const updatedConfig: LocalFlagConfig = {
-          ...currentConfig,
+        updatedConfig = {
+          ...baseConfig,
           disable: !turnOn, // Toggle the disable field
         };
-        return localFlagAPI.updateFlag(key, updatedConfig);
+      } else {
+        // For simple flags, toggle by changing the defaultRule.variation
+        const { on, off } = getToggleVariations(currentConfig);
+        const newVariation = turnOn ? on : off;
+
+        updatedConfig = {
+          ...baseConfig,
+          disable: false, // Ensure flag is not disabled
+          defaultRule: {
+            ...baseConfig.defaultRule,
+            variation: newVariation,
+          },
+        };
       }
 
-      // For simple flags, toggle by changing the defaultRule.variation
-      const { on, off } = getToggleVariations(currentConfig);
-      const newVariation = turnOn ? on : off;
+      // Update via flagset API if a flagset is selected
+      if (flagSetId) {
+        const response = await fetch(`/api/flagsets/${flagSetId}/flags/${encodeURIComponent(key)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          // Backend expects { config: flagConfig } format
+          body: JSON.stringify({ config: updatedConfig }),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to update flag');
+        }
+        return response.json();
+      }
 
-      const updatedConfig: LocalFlagConfig = {
-        ...currentConfig,
-        disable: false, // Ensure flag is not disabled
-        defaultRule: {
-          ...currentConfig.defaultRule,
-          variation: newVariation,
-        },
-      };
-
+      // Fall back to local API for dev mode without flagset
       return localFlagAPI.updateFlag(key, updatedConfig);
     },
     onMutate: async ({ key }) => {
       setTogglingFlag(key);
     },
-    onSuccess: async (_, { key, turnOn, currentConfig }) => {
+    onSuccess: async (_, { key, turnOn, currentConfig, flagSetId }) => {
       const rolloutType = getRolloutType(currentConfig);
       const isComplex = ['percentage', 'progressive', 'scheduled', 'experimentation'].includes(rolloutType);
 
@@ -264,11 +302,11 @@ function FlagsPageContent() {
         toast.success(`Flag "${key}" set to ${turnOn ? 'enabled' : 'disabled'}`);
       }
       // Invalidate and refetch flags
+      if (flagSetId) {
+        await queryClient.invalidateQueries({ queryKey: ['flagset-flags', flagSetId] });
+      }
       await queryClient.invalidateQueries({ queryKey: ['local-flags'] });
       await queryClient.invalidateQueries({ queryKey: ['flags-config'] });
-      // Force refetch
-      await queryClient.refetchQueries({ queryKey: ['local-flags'] });
-      await queryClient.refetchQueries({ queryKey: ['flags-config'] });
     },
     onError: (error, { key }) => {
       toast.error(`Failed to toggle flag "${key}": ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -291,6 +329,7 @@ function FlagsPageContent() {
       key,
       currentConfig: flag,
       turnOn: !currentlyOn,
+      flagSetId: selectedFlagSet,
     });
   };
 
@@ -327,32 +366,26 @@ function FlagsPageContent() {
     };
 
     try {
-      if (isDevMode) {
-        await localFlagAPI.createFlag(quickFlagKey.trim(), quickFlagConfig);
-      } else if (selectedFlagSet) {
-        // Create flag in the selected flagset
-        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags/${quickFlagKey.trim()}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(quickFlagConfig),
-        });
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Failed to create flag');
-        }
-      } else {
-        throw new Error('No flagset selected');
+      if (!selectedFlagSet) {
+        throw new Error('Please select a flag set first');
       }
+
+      const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags/${quickFlagKey.trim()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(quickFlagConfig),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create flag');
+      }
+      await queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
       toast.success(`Flag "${quickFlagKey}" created`);
 
       // Reset form and close dialog
       setQuickFlagKey('');
       setQuickFlagDescription('');
       setShowQuickAdd(false);
-
-      // Refresh flags list
-      await queryClient.invalidateQueries({ queryKey: ['local-flags'] });
-      await queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create flag');
     } finally {
@@ -363,10 +396,13 @@ function FlagsPageContent() {
   const filteredFlags = useMemo(() => {
     if (!flagsQuery.data?.flags) return [];
 
-    const flags = flagsQuery.data.flags as Record<string, LocalFlagConfig | FlagConfiguration>;
+    const flags = flagsQuery.data.flags as Record<string, LocalFlagConfig | FlagConfiguration | null>;
 
     return Object.entries(flags)
       .filter(([key, flag]) => {
+        // Filter out null flags
+        if (!flag) return false;
+
         // Search filter
         if (search && !key.toLowerCase().includes(search.toLowerCase())) {
           return false;
@@ -379,17 +415,17 @@ function FlagsPageContent() {
 
         return true;
       })
-      .sort(([a], [b]) => a.localeCompare(b));
+      .sort(([a], [b]) => a.localeCompare(b)) as [string, LocalFlagConfig | FlagConfiguration][];
   }, [flagsQuery.data?.flags, search, filterStatus]);
 
-  const getVariationType = (flag: FlagConfiguration | LocalFlagConfig): string => {
-    if (!flag.variations) return 'unknown';
+  const getVariationType = (flag: FlagConfiguration | LocalFlagConfig | null | undefined): string => {
+    if (!flag || !flag.variations) return 'unknown';
     const values = Object.values(flag.variations);
     if (values.length === 0) return 'unknown';
     return getValueType(values[0]);
   };
 
-  if (!isConnected && !isDevMode) {
+  if (!isConnected && !isDevMode && !selectedFlagSet) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <AlertCircle className="h-16 w-16 text-yellow-500" />
@@ -399,6 +435,7 @@ function FlagsPageContent() {
           <Link href="/settings" className="text-blue-600 hover:underline">
             Settings
           </Link>
+          {' '}or select a Flag Set from the sidebar
         </p>
       </div>
     );
@@ -570,15 +607,7 @@ function FlagsPageContent() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!isDevMode && !selectedFlagSet ? (
-            <div className="text-center py-8">
-              <Layers className="mx-auto h-12 w-12 text-zinc-300 dark:text-zinc-700" />
-              <p className="mt-4 text-zinc-500">No flag set selected</p>
-              <p className="mt-2 text-sm text-zinc-400">
-                Select a flag set from the sidebar to view its flags
-              </p>
-            </div>
-          ) : flagsQuery.isLoading ? (
+          {flagsQuery.isLoading ? (
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
