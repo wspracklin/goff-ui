@@ -20,6 +20,8 @@ import {
   Bell,
   Database,
   FolderOpen,
+  Terminal,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Card,
@@ -33,8 +35,11 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/lib/store';
+import { useSDKSettings, CODE_THEMES, CodeTheme } from '@/lib/sdk-settings';
+import { SDK_INFO, SDKLanguage, DEFAULT_ENABLED_SDKS } from '@/lib/sdk-snippets';
 import goffClient from '@/lib/api';
 import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
 
 export default function SettingsPage() {
   const { config, setConfig, isConnected, testConnection, connectionError, isDevMode, setDevMode } =
@@ -434,6 +439,9 @@ export default function SettingsPage() {
         </Link>
       </Card>
 
+      {/* SDK Code Snippets Settings */}
+      <SDKSettingsCard />
+
       {/* Help - Production mode only */}
       {!isDevMode && (
         <Card>
@@ -488,5 +496,131 @@ authorizedKeys:
         </Card>
       )}
     </div>
+  );
+}
+
+// SDK Settings Card Component
+function SDKSettingsCard() {
+  const { enabledSDKs, toggleSDK, codeTheme, setCodeTheme, resetToDefaults } = useSDKSettings();
+
+  const serverSDKs = Object.values(SDK_INFO).filter((sdk) => sdk.type === 'server');
+  const clientSDKs = Object.values(SDK_INFO).filter((sdk) => sdk.type === 'client');
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Terminal className="h-5 w-5" />
+          SDK Code Snippets
+        </CardTitle>
+        <CardDescription>
+          Choose which SDK languages to show in flag code snippets
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Code Theme */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Code2 className="h-4 w-4 text-zinc-500" />
+            <span className="text-sm font-medium">Code Theme</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {(Object.entries(CODE_THEMES) as [CodeTheme, typeof CODE_THEMES[CodeTheme]][]).map(
+              ([themeId, theme]) => (
+                <button
+                  key={themeId}
+                  onClick={() => setCodeTheme(themeId)}
+                  className={`
+                    relative rounded-lg p-3 text-left transition-all
+                    ${codeTheme === themeId
+                      ? 'ring-2 ring-blue-500'
+                      : 'ring-1 ring-zinc-200 dark:ring-zinc-700 hover:ring-zinc-300 dark:hover:ring-zinc-600'
+                    }
+                  `}
+                >
+                  <div
+                    className="h-8 rounded mb-2"
+                    style={{ backgroundColor: theme.colors.background }}
+                  >
+                    <div
+                      className="p-1 text-xs font-mono truncate"
+                      style={{ color: theme.colors.text }}
+                    >
+                      const x = 1;
+                    </div>
+                  </div>
+                  <span className="text-sm font-medium">{theme.name}</span>
+                </button>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* Server SDKs */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Server className="h-4 w-4 text-zinc-500" />
+            <span className="text-sm font-medium">Server SDKs</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {serverSDKs.map((sdk) => (
+              <div
+                key={sdk.id}
+                className="flex items-center justify-between rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+              >
+                <Label htmlFor={`sdk-${sdk.id}`} className="cursor-pointer">
+                  {sdk.name}
+                </Label>
+                <Switch
+                  id={`sdk-${sdk.id}`}
+                  checked={enabledSDKs.includes(sdk.id)}
+                  onCheckedChange={() => toggleSDK(sdk.id)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Client SDKs */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Monitor className="h-4 w-4 text-zinc-500" />
+            <span className="text-sm font-medium">Client SDKs</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {clientSDKs.map((sdk) => (
+              <div
+                key={sdk.id}
+                className="flex items-center justify-between rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+              >
+                <Label htmlFor={`sdk-${sdk.id}`} className="cursor-pointer">
+                  {sdk.name}
+                </Label>
+                <Switch
+                  id={`sdk-${sdk.id}`}
+                  checked={enabledSDKs.includes(sdk.id)}
+                  onCheckedChange={() => toggleSDK(sdk.id)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Reset button */}
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetToDefaults();
+              toast.success('SDK settings reset to defaults');
+            }}
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Reset to Defaults
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

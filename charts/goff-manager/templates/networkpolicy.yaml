@@ -1,0 +1,47 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "goff-manager.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "goff-manager.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic within the release
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "goff-manager.selectorLabels" . | nindent 14 }}
+    # Allow traffic from ingress controller (if using standard labels)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+    {{- if .Values.networkPolicy.allowedNamespaces }}
+    # Allow traffic from specified namespaces
+    - from:
+        {{- range .Values.networkPolicy.allowedNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- if .Values.networkPolicy.allowedPodSelectors }}
+    # Allow traffic from specified pod selectors
+    - from:
+        {{- range .Values.networkPolicy.allowedPodSelectors }}
+        - podSelector:
+            matchLabels:
+              {{- toYaml . | nindent 14 }}
+        {{- end }}
+    {{- end }}
+{{- end }}

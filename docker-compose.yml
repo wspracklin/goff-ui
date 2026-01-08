@@ -45,13 +45,9 @@ services:
     volumes:
       - ./relay-proxy-config.yaml:/goff/goff-proxy.yaml:ro
     depends_on:
-      - flag-manager-api
+      flag-manager-api:
+        condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:1031/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Frontend UI
   goff-ui:
@@ -62,11 +58,14 @@ services:
       - FLAG_MANAGER_API_URL=http://flag-manager-api:8095
       - NEXT_PUBLIC_FLAG_MANAGER_API_URL=http://localhost:8095
       - RELAY_PROXY_URL=http://relay-proxy:1031
+      - NEXT_PUBLIC_RELAY_PROXY_URL=http://localhost:1031
       - DEV_MODE=true
       - AUTH_SECRET=change-this-in-production
     depends_on:
-      - flag-manager-api
-      - relay-proxy
+      flag-manager-api:
+        condition: service_healthy
+      relay-proxy:
+        condition: service_started
     restart: unless-stopped
 
   # Optional: Nginx reverse proxy for SSL termination

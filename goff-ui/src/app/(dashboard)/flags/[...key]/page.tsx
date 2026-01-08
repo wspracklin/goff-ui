@@ -44,6 +44,7 @@ import goffClient from '@/lib/api';
 import { localFlagAPI, LocalFlagConfig } from '@/lib/local-api';
 import { formatValue, getValueType, getValueColor } from '@/lib/utils';
 import { toast } from 'sonner';
+import { CodeSnippets } from '@/components/CodeSnippets';
 
 export default function FlagDetailPage() {
   const params = useParams();
@@ -114,6 +115,31 @@ export default function FlagDetailPage() {
       }
     }
     return totalOn;
+  };
+
+  // Helper to detect flag type from variations
+  const detectFlagType = (flag: LocalFlagConfig): 'boolean' | 'string' | 'number' | 'json' => {
+    if (!flag.variations) return 'boolean';
+    const values = Object.values(flag.variations);
+    if (values.length === 0) return 'boolean';
+    const firstValue = values[0];
+    if (typeof firstValue === 'boolean') return 'boolean';
+    if (typeof firstValue === 'number') return 'number';
+    if (typeof firstValue === 'object') return 'json';
+    return 'string';
+  };
+
+  // Helper to get default value for code snippets
+  const getDefaultValue = (flag: LocalFlagConfig): string => {
+    const defaultVariation = flag.defaultRule?.variation;
+    if (!defaultVariation || !flag.variations) {
+      return 'false';
+    }
+    const value = flag.variations[defaultVariation];
+    if (typeof value === 'boolean') return String(value);
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
   };
 
   // In dev mode, fetch from local flags file; otherwise from relay proxy
@@ -519,6 +545,16 @@ export default function FlagDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Code Snippets */}
+        <div className="lg:col-span-2">
+          <CodeSnippets
+            flagKey={flagKey}
+            flagType={detectFlagType(flag)}
+            defaultValue={getDefaultValue(flag)}
+            relayProxyUrl={config.proxyUrl || 'http://localhost:1031'}
+          />
+        </div>
 
         {/* Scheduled Rollout */}
         {flag.scheduledRollout && flag.scheduledRollout.length > 0 && (

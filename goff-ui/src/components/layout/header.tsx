@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, Bell, Moon, Sun, LogOut, User } from 'lucide-react';
+import { RefreshCw, Bell, Moon, Sun, LogOut, User, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/lib/store';
 import goffClient from '@/lib/api';
@@ -8,23 +8,31 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
+import { useTheme } from 'next-themes';
 
 export function Header() {
   const { config, isConnected } = useAppStore();
   const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isDark, setIsDark] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
+  // Avoid hydration mismatch
   useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    setIsDark(isDarkMode);
+    setMounted(true);
   }, []);
 
-  const toggleDarkMode = () => {
-    document.documentElement.classList.toggle('dark');
-    setIsDark(!isDark);
+  const cycleTheme = () => {
+    if (theme === 'light') {
+      setTheme('dark');
+    } else if (theme === 'dark') {
+      setTheme('system');
+    } else {
+      setTheme('light');
+    }
   };
 
   const handleRefresh = async () => {
@@ -76,9 +84,65 @@ export function Header() {
           <Bell className="h-4 w-4" />
         </Button>
 
-        <Button variant="ghost" size="sm" onClick={toggleDarkMode}>
-          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </Button>
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowThemeMenu(!showThemeMenu)}
+            title={`Theme: ${theme}`}
+          >
+            {mounted ? (
+              resolvedTheme === 'dark' ? (
+                <Moon className="h-4 w-4" />
+              ) : (
+                <Sun className="h-4 w-4" />
+              )
+            ) : (
+              <Sun className="h-4 w-4" />
+            )}
+          </Button>
+
+          {showThemeMenu && (
+            <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+              <button
+                onClick={() => {
+                  setTheme('light');
+                  setShowThemeMenu(false);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                  theme === 'light' ? 'text-blue-600 dark:text-blue-400' : ''
+                }`}
+              >
+                <Sun className="h-4 w-4" />
+                Light
+              </button>
+              <button
+                onClick={() => {
+                  setTheme('dark');
+                  setShowThemeMenu(false);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                  theme === 'dark' ? 'text-blue-600 dark:text-blue-400' : ''
+                }`}
+              >
+                <Moon className="h-4 w-4" />
+                Dark
+              </button>
+              <button
+                onClick={() => {
+                  setTheme('system');
+                  setShowThemeMenu(false);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                  theme === 'system' ? 'text-blue-600 dark:text-blue-400' : ''
+                }`}
+              >
+                <Monitor className="h-4 w-4" />
+                System
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* User Menu */}
         {session?.user && (

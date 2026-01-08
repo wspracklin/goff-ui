@@ -116,7 +116,38 @@ docker-compose -f docker-compose.gitlab.yml up -d
 
 Then open http://localhost:30000
 
-### Option 3: Kubernetes (Production)
+### Option 3: Helm Chart (Production Kubernetes)
+
+```bash
+# Install with default values
+helm install goff-manager ./charts/goff-manager
+
+# Install with custom values
+helm install goff-manager ./charts/goff-manager \
+  --set api.image.repository=your-registry/flag-manager-api \
+  --set ui.image.repository=your-registry/goff-ui \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host=flags.example.com
+
+# Install with Azure DevOps integration
+helm install goff-manager ./charts/goff-manager \
+  --set api.git.provider=ado \
+  --set api.git.ado.orgUrl=https://dev.azure.com/myorg \
+  --set api.git.ado.project=myproject \
+  --set api.git.ado.repository=myrepo \
+  --set api.git.ado.pat=your-pat
+
+# Install with GitLab integration
+helm install goff-manager ./charts/goff-manager \
+  --set api.git.provider=gitlab \
+  --set api.git.gitlab.url=https://gitlab.com \
+  --set api.git.gitlab.projectId=12345 \
+  --set api.git.gitlab.token=your-token
+```
+
+See `charts/goff-manager/values.yaml` for all configuration options.
+
+### Option 4: Kubernetes (Kustomize)
 
 1. **Build and push images:**
    ```bash
@@ -229,7 +260,9 @@ go-ui/
 │   │   └── lib/              # Utilities and API clients
 │   ├── Dockerfile
 │   └── package.json
-├── k8s/                       # Kubernetes manifests
+├── charts/                    # Helm charts
+│   └── goff-manager/          # Main Helm chart
+├── k8s/                       # Kubernetes manifests (Kustomize)
 │   └── base/
 ├── scripts/                   # Development scripts
 │   ├── local-dev.ps1         # Windows k3d script

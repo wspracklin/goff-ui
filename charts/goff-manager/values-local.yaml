@@ -1,0 +1,101 @@
+# Local development values for k3d
+# Usage: helm install goff-manager ./charts/goff-manager -f ./charts/goff-manager/values-local.yaml
+
+# Flag Manager API
+api:
+  image:
+    repository: goff-manager-api
+    tag: latest
+    # Never pull - use imported images
+    pullPolicy: Never
+
+  service:
+    type: NodePort
+    port: 8095
+    nodePort: 30095
+
+  # Use smaller resources for local dev
+  resources:
+    limits:
+      cpu: 250m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  # Disable security context for local dev (may cause issues with some setups)
+  podSecurityContext: {}
+  securityContext: {}
+
+# Frontend UI
+ui:
+  image:
+    repository: goff-manager-ui
+    tag: latest
+    pullPolicy: Never
+
+  service:
+    type: NodePort
+    port: 4000
+    nodePort: 30000
+
+  env:
+    # Enable dev mode to skip authentication
+    devMode: "true"
+
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+  podSecurityContext: {}
+  securityContext: {}
+
+# Relay Proxy
+relayProxy:
+  image:
+    repository: gofeatureflag/go-feature-flag
+    tag: latest
+    pullPolicy: Never
+
+  service:
+    type: NodePort
+    port: 1031
+    nodePort: 31031
+
+  resources:
+    limits:
+      cpu: 250m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  config:
+    debug: true
+
+# Disable features not needed for local dev
+serviceAccount:
+  create: true
+
+networkPolicy:
+  enabled: false
+
+podDisruptionBudget:
+  api:
+    enabled: false
+  ui:
+    enabled: false
+  relayProxy:
+    enabled: false
+
+autoscaling:
+  api:
+    enabled: false
+  ui:
+    enabled: false
+  relayProxy:
+    enabled: false

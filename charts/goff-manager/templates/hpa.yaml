@@ -1,0 +1,85 @@
+{{- if .Values.autoscaling.api.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "goff-manager.api.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.api.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "goff-manager.api.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.api.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.api.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.api.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.api.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.api.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.api.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+---
+{{- if .Values.autoscaling.ui.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "goff-manager.ui.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.ui.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "goff-manager.ui.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.ui.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.ui.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.ui.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.ui.targetCPUUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+---
+{{- if .Values.autoscaling.relayProxy.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "goff-manager.relayProxy.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.relayProxy.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "goff-manager.relayProxy.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.relayProxy.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.relayProxy.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.relayProxy.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.relayProxy.targetCPUUtilizationPercentage }}
+    {{- end }}
+{{- end }}

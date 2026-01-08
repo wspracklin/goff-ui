@@ -1,0 +1,132 @@
+{{- if .Values.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "goff-manager.api.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.api.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.api.enabled }}
+  replicas: {{ .Values.api.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "goff-manager.api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-relay.yaml") . | sha256sum }}
+        {{- with .Values.api.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "goff-manager.api.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- include "goff-manager.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "goff-manager.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.api.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          securityContext:
+            {{- toYaml .Values.api.securityContext | nindent 12 }}
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.env.port | default 8095 }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.api.env.port | default "8095" | quote }}
+            - name: FLAGS_DIR
+              value: {{ .Values.api.env.flagsDir | default "/data/flags" | quote }}
+            - name: RELAY_PROXY_URL
+              value: {{ include "goff-manager.relayProxy.internalUrl" . | quote }}
+            {{- if .Values.api.git.provider }}
+            - name: GIT_PROVIDER
+              value: {{ .Values.api.git.provider | quote }}
+            - name: GIT_BASE_BRANCH
+              value: {{ .Values.api.git.baseBranch | default "main" | quote }}
+            - name: GIT_FLAGS_PATH
+              value: {{ .Values.api.git.flagsPath | default "/flags.yaml" | quote }}
+            {{- end }}
+            {{- if eq .Values.api.git.provider "ado" }}
+            - name: ADO_ORG_URL
+              value: {{ .Values.api.git.ado.orgUrl | quote }}
+            - name: ADO_PROJECT
+              value: {{ .Values.api.git.ado.project | quote }}
+            - name: ADO_REPOSITORY
+              value: {{ .Values.api.git.ado.repository | quote }}
+            - name: ADO_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "goff-manager.api.secretName" . }}
+                  key: {{ .Values.api.git.adoPatKey | default "ado-pat" }}
+            {{- end }}
+            {{- if eq .Values.api.git.provider "gitlab" }}
+            - name: GITLAB_URL
+              value: {{ .Values.api.git.gitlab.url | quote }}
+            - name: GITLAB_PROJECT_ID
+              value: {{ .Values.api.git.gitlab.projectId | quote }}
+            - name: GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "goff-manager.api.secretName" . }}
+                  key: {{ .Values.api.git.gitlabTokenKey | default "gitlab-token" }}
+            {{- end }}
+            {{- range $key, $value := .Values.extraEnvApi }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.api.healthCheck.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.api.healthCheck.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.api.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.healthCheck.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.api.healthCheck.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.api.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.healthCheck.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            - name: flags-data
+              mountPath: {{ .Values.api.env.flagsDir | default "/data/flags" }}
+            {{- with .Values.extraVolumeMountsApi }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: flags-data
+          {{- if .Values.api.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "goff-manager.api.pvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

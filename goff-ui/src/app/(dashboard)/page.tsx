@@ -71,12 +71,13 @@ export default function DashboardPage() {
     queryFn: async () => {
       const res = await fetch('/api/flagsets');
       if (!res.ok) throw new Error('Failed to fetch flag sets');
-      return res.json() as Promise<{ flagSets: FlagSet[] }>;
+      const data = await res.json();
+      return data.flagSets as FlagSet[];
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const selectedFlagSetName = flagSetsQuery.data?.flagSets?.find(fs => fs.id === selectedFlagSet)?.name;
+  const selectedFlagSetName = flagSetsQuery.data?.find(fs => fs.id === selectedFlagSet)?.name;
 
   // Type for flag with percentage rollout
   type FlagWithRollout = {

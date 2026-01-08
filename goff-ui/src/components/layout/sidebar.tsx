@@ -63,20 +63,26 @@ export function Sidebar() {
     queryFn: async () => {
       const res = await fetch('/api/flagsets');
       if (!res.ok) throw new Error('Failed to fetch flag sets');
-      return res.json() as Promise<{ flagSets: FlagSet[] }>;
+      const data = await res.json();
+      return data.flagSets as FlagSet[];
     },
-    staleTime: 30 * 1000, // 30 seconds - shorter to pick up changes faster
+    staleTime: 5 * 1000, // 5 seconds - shorter to pick up changes faster
     refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   // Auto-select default flagset if none selected, or clear if selected one was deleted
   useEffect(() => {
-    const flagSets = flagSetsQuery.data?.flagSets || [];
+    const flagSets = flagSetsQuery.data || [];
 
     // If current selection no longer exists, clear it
-    if (selectedFlagSet && flagSets.length > 0 && !flagSets.find(fs => fs.id === selectedFlagSet)) {
-      const defaultFlagSet = flagSets.find(fs => fs.isDefault);
-      setSelectedFlagSet(defaultFlagSet?.id || flagSets[0]?.id || null);
+    if (selectedFlagSet && !flagSets.find(fs => fs.id === selectedFlagSet)) {
+      if (flagSets.length > 0) {
+        const defaultFlagSet = flagSets.find(fs => fs.isDefault);
+        setSelectedFlagSet(defaultFlagSet?.id || flagSets[0]?.id || null);
+      } else {
+        setSelectedFlagSet(null);
+      }
       return;
     }
 
@@ -91,7 +97,7 @@ export function Sidebar() {
     }
   }, [selectedFlagSet, flagSetsQuery.data, setSelectedFlagSet]);
 
-  const selectedFlagSetName = flagSetsQuery.data?.flagSets?.find(fs => fs.id === selectedFlagSet)?.name;
+  const selectedFlagSetName = flagSetsQuery.data?.find(fs => fs.id === selectedFlagSet)?.name;
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
@@ -171,7 +177,7 @@ export function Sidebar() {
       )}
 
       {/* Flagset Selector */}
-      {flagSetsQuery.data?.flagSets && flagSetsQuery.data.flagSets.length > 0 && (
+      {flagSetsQuery.data && flagSetsQuery.data.length > 0 && (
         <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <div className="relative">
             <button
@@ -194,7 +200,7 @@ export function Sidebar() {
 
             {flagSetDropdownOpen && (
               <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-auto rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                {flagSetsQuery.data.flagSets.map((flagSet) => (
+                {flagSetsQuery.data.map((flagSet) => (
                   <button
                     key={flagSet.id}
                     onClick={() => {

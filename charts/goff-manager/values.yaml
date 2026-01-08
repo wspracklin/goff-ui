@@ -1,0 +1,432 @@
+# Default values for goff-manager
+# This is a YAML-formatted file.
+
+# -- Global settings
+global:
+  # -- Image pull secrets for all deployments
+  imagePullSecrets: []
+  # -- Storage class for persistent volumes
+  storageClass: ""
+
+# -- Namespace to deploy into (defaults to release namespace)
+namespace: ""
+
+# =============================================================================
+# Flag Manager API Configuration
+# =============================================================================
+api:
+  # -- Enable/disable the Flag Manager API
+  enabled: true
+
+  # -- Number of replicas
+  replicaCount: 1
+
+  image:
+    # -- Image repository
+    repository: your-registry/flag-manager-api
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+    # -- Image tag (defaults to Chart appVersion)
+    tag: ""
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+    port: 8095
+    # -- NodePort (only used if type is NodePort)
+    nodePort: ""
+
+  # -- Resource limits and requests
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # -- Node selector
+  nodeSelector: {}
+
+  # -- Tolerations
+  tolerations: []
+
+  # -- Affinity rules
+  affinity: {}
+
+  # -- Pod annotations
+  podAnnotations: {}
+
+  # -- Pod security context
+  podSecurityContext:
+    fsGroup: 1000
+
+  # -- Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  # -- Health check configuration
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # -- Environment variables for the API
+  env:
+    # -- API port
+    port: "8095"
+    # -- Directory for flag YAML files
+    flagsDir: "/data/flags"
+
+  # -- Persistent volume for flags storage
+  persistence:
+    enabled: true
+    # -- Storage class (uses global.storageClass if empty)
+    storageClass: ""
+    # -- Access modes
+    accessModes:
+      - ReadWriteOnce
+    # -- Storage size
+    size: 1Gi
+    # -- Existing PVC to use (if set, other persistence settings are ignored)
+    existingClaim: ""
+
+  # -- Git provider configuration (for PR-based flag changes)
+  git:
+    # -- Git provider type: "" (disabled), "ado", or "gitlab"
+    provider: ""
+    # -- Base branch for PRs
+    baseBranch: "main"
+    # -- Path to flags file in repository
+    flagsPath: "/flags.yaml"
+
+    # -- Azure DevOps configuration
+    ado:
+      # -- Azure DevOps organization URL (e.g., https://dev.azure.com/myorg)
+      orgUrl: ""
+      # -- Azure DevOps project name
+      project: ""
+      # -- Azure DevOps repository name
+      repository: ""
+      # -- Personal Access Token (use existingSecret for production)
+      pat: ""
+
+    # -- GitLab configuration
+    gitlab:
+      # -- GitLab instance URL (e.g., https://gitlab.com)
+      url: ""
+      # -- GitLab project ID
+      projectId: ""
+      # -- GitLab access token (use existingSecret for production)
+      token: ""
+
+    # -- Use existing secret for git credentials
+    existingSecret: ""
+    # -- Key in existing secret for ADO PAT
+    adoPatKey: "ado-pat"
+    # -- Key in existing secret for GitLab token
+    gitlabTokenKey: "gitlab-token"
+
+# =============================================================================
+# Frontend UI Configuration
+# =============================================================================
+ui:
+  # -- Enable/disable the Frontend UI
+  enabled: true
+
+  # -- Number of replicas
+  replicaCount: 1
+
+  image:
+    # -- Image repository
+    repository: your-registry/goff-ui
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+    # -- Image tag (defaults to Chart appVersion)
+    tag: ""
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+    port: 4000
+    # -- NodePort (only used if type is NodePort)
+    nodePort: ""
+
+  # -- Resource limits and requests
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  # -- Node selector
+  nodeSelector: {}
+
+  # -- Tolerations
+  tolerations: []
+
+  # -- Affinity rules
+  affinity: {}
+
+  # -- Pod annotations
+  podAnnotations: {}
+
+  # -- Pod security context
+  podSecurityContext:
+    fsGroup: 1000
+
+  # -- Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  # -- Environment variables
+  env:
+    # -- Enable development mode (skip authentication)
+    devMode: "false"
+    # -- NextAuth secret (use existingSecret for production)
+    authSecret: ""
+
+  # -- Keycloak authentication configuration
+  keycloak:
+    # -- Enable Keycloak authentication
+    enabled: false
+    # -- Keycloak issuer URL
+    issuer: ""
+    # -- Keycloak client ID
+    clientId: ""
+    # -- Keycloak client secret (use existingSecret for production)
+    clientSecret: ""
+
+  # -- Use existing secret for UI secrets
+  existingSecret: ""
+  # -- Key in existing secret for auth secret
+  authSecretKey: "auth-secret"
+  # -- Key in existing secret for Keycloak client secret
+  keycloakSecretKey: "keycloak-client-secret"
+
+# =============================================================================
+# GO Feature Flag Relay Proxy Configuration
+# =============================================================================
+relayProxy:
+  # -- Enable/disable the Relay Proxy
+  enabled: true
+
+  # -- Number of replicas
+  replicaCount: 1
+
+  image:
+    # -- Image repository
+    repository: gofeatureflag/go-feature-flag
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+    # -- Image tag
+    tag: "latest"
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+    port: 1031
+    # -- NodePort (only used if type is NodePort)
+    nodePort: ""
+
+  # -- Resource limits and requests
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # -- Node selector
+  nodeSelector: {}
+
+  # -- Tolerations
+  tolerations: []
+
+  # -- Affinity rules
+  affinity: {}
+
+  # -- Pod annotations
+  podAnnotations: {}
+
+  # -- Pod security context
+  podSecurityContext: {}
+
+  # -- Container security context
+  securityContext: {}
+
+  # -- Health check configuration
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # -- Relay proxy configuration
+  config:
+    # -- Polling interval in milliseconds
+    pollingInterval: 10000
+    # -- Enable debug mode
+    debug: false
+
+  # -- Authorized API keys
+  authorizedKeys:
+    # -- Evaluation API keys
+    evaluation: []
+    # -- Admin API keys (for refresh, etc.)
+    admin: []
+
+  # -- Use existing secret for API keys
+  existingSecret: ""
+  # -- Key in existing secret for evaluation keys (comma-separated)
+  evaluationKeysKey: "evaluation-keys"
+  # -- Key in existing secret for admin keys (comma-separated)
+  adminKeysKey: "admin-keys"
+
+# =============================================================================
+# Ingress Configuration
+# =============================================================================
+ingress:
+  # -- Enable ingress
+  enabled: false
+
+  # -- Ingress class name
+  className: ""
+
+  # -- Ingress annotations
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+
+  # -- Hosts configuration
+  hosts:
+    # -- UI host configuration
+    - host: flags.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: ui
+        - path: /api
+          pathType: Prefix
+          service: api
+    # -- Separate host for relay proxy (optional)
+    # - host: relay.example.com
+    #   paths:
+    #     - path: /
+    #       pathType: Prefix
+    #       service: relayProxy
+
+  # -- TLS configuration
+  tls: []
+  #  - secretName: flags-tls
+  #    hosts:
+  #      - flags.example.com
+
+# =============================================================================
+# Service Account Configuration
+# =============================================================================
+serviceAccount:
+  # -- Create a service account
+  create: true
+  # -- Service account annotations
+  annotations: {}
+  # -- Service account name (generated if not set)
+  name: ""
+
+# =============================================================================
+# Network Policy Configuration
+# =============================================================================
+networkPolicy:
+  # -- Enable network policies
+  enabled: false
+
+  # -- Allow ingress from these namespaces
+  allowedNamespaces: []
+
+  # -- Allow ingress from these pod selectors
+  allowedPodSelectors: []
+
+# =============================================================================
+# Pod Disruption Budget Configuration
+# =============================================================================
+podDisruptionBudget:
+  # -- Enable PDB for API
+  api:
+    enabled: false
+    minAvailable: 1
+    # maxUnavailable: 1
+
+  # -- Enable PDB for UI
+  ui:
+    enabled: false
+    minAvailable: 1
+
+  # -- Enable PDB for Relay Proxy
+  relayProxy:
+    enabled: false
+    minAvailable: 1
+
+# =============================================================================
+# Horizontal Pod Autoscaler Configuration
+# =============================================================================
+autoscaling:
+  # -- HPA for API
+  api:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  # -- HPA for UI
+  ui:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+
+  # -- HPA for Relay Proxy
+  relayProxy:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+# =============================================================================
+# Extra Environment Variables
+# =============================================================================
+# -- Extra environment variables for API (key-value pairs)
+extraEnvApi: {}
+  # MY_VAR: my-value
+
+# -- Extra environment variables for UI (key-value pairs)
+extraEnvUi: {}
+
+# -- Extra environment variables for Relay Proxy (key-value pairs)
+extraEnvRelayProxy: {}
+
+# =============================================================================
+# Extra Volumes and Volume Mounts
+# =============================================================================
+# -- Extra volumes for all pods
+extraVolumes: []
+
+# -- Extra volume mounts for API
+extraVolumeMountsApi: []
+
+# -- Extra volume mounts for UI
+extraVolumeMountsUi: []
+
+# -- Extra volume mounts for Relay Proxy
+extraVolumeMountsRelayProxy: []

@@ -1,0 +1,21 @@
+{{- if .Values.relayProxy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "goff-manager.relayProxy.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.relayProxy.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.relayProxy.service.type }}
+  ports:
+    - port: {{ .Values.relayProxy.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if and (eq .Values.relayProxy.service.type "NodePort") .Values.relayProxy.service.nodePort }}
+      nodePort: {{ .Values.relayProxy.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "goff-manager.relayProxy.selectorLabels" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,59 @@
+{{- if .Values.podDisruptionBudget.api.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "goff-manager.api.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.api.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.podDisruptionBudget.api.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.api.minAvailable }}
+  {{- end }}
+  {{- if .Values.podDisruptionBudget.api.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.api.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "goff-manager.api.selectorLabels" . | nindent 6 }}
+{{- end }}
+---
+{{- if .Values.podDisruptionBudget.ui.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "goff-manager.ui.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.ui.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.podDisruptionBudget.ui.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.ui.minAvailable }}
+  {{- end }}
+  {{- if .Values.podDisruptionBudget.ui.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.ui.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "goff-manager.ui.selectorLabels" . | nindent 6 }}
+{{- end }}
+---
+{{- if .Values.podDisruptionBudget.relayProxy.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "goff-manager.relayProxy.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.relayProxy.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.podDisruptionBudget.relayProxy.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.relayProxy.minAvailable }}
+  {{- end }}
+  {{- if .Values.podDisruptionBudget.relayProxy.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.relayProxy.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "goff-manager.relayProxy.selectorLabels" . | nindent 6 }}
+{{- end }}

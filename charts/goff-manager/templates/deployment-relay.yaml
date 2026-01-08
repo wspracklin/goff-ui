@@ -1,0 +1,100 @@
+{{- if .Values.relayProxy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "goff-manager.relayProxy.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.relayProxy.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.relayProxy.enabled }}
+  replicas: {{ .Values.relayProxy.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "goff-manager.relayProxy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-relay.yaml") . | sha256sum }}
+        {{- with .Values.relayProxy.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "goff-manager.relayProxy.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- include "goff-manager.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "goff-manager.serviceAccountName" . }}
+      {{- with .Values.relayProxy.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-api
+          image: busybox:1.36
+          command: ['sh', '-c', 'until wget -q --spider http://{{ include "goff-manager.api.fullname" . }}:{{ .Values.api.service.port }}/health; do echo "Waiting for API..."; sleep 2; done; echo "API is ready!"']
+      containers:
+        - name: relay-proxy
+          {{- with .Values.relayProxy.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.relayProxy.image.repository }}:{{ .Values.relayProxy.image.tag }}"
+          imagePullPolicy: {{ .Values.relayProxy.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.relayProxy.service.port }}
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.extraEnvRelayProxy }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.relayProxy.healthCheck.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.relayProxy.healthCheck.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.relayProxy.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.relayProxy.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.relayProxy.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.relayProxy.healthCheck.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.relayProxy.healthCheck.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.relayProxy.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.relayProxy.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.relayProxy.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.relayProxy.healthCheck.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.relayProxy.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /goff/goff-proxy.yaml
+              subPath: goff-proxy.yaml
+              readOnly: true
+            {{- with .Values.extraVolumeMountsRelayProxy }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "goff-manager.relayProxy.configMapName" . }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.relayProxy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.relayProxy.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.relayProxy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

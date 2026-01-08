@@ -1,0 +1,86 @@
+GO Feature Flag Manager has been deployed!
+
+{{- if .Values.ui.enabled }}
+
+=== Frontend UI ===
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  URL: http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if contains "NodePort" .Values.ui.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ include "goff-manager.namespace" . }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "goff-manager.ui.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ include "goff-manager.namespace" . }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "UI URL: http://$NODE_IP:$NODE_PORT"
+{{- else if contains "LoadBalancer" .Values.ui.service.type }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        Watch the status with: kubectl get --namespace {{ include "goff-manager.namespace" . }} svc -w {{ include "goff-manager.ui.fullname" . }}
+  export SERVICE_IP=$(kubectl get svc --namespace {{ include "goff-manager.namespace" . }} {{ include "goff-manager.ui.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "UI URL: http://$SERVICE_IP:{{ .Values.ui.service.port }}"
+{{- else if contains "ClusterIP" .Values.ui.service.type }}
+  kubectl port-forward --namespace {{ include "goff-manager.namespace" . }} svc/{{ include "goff-manager.ui.fullname" . }} {{ .Values.ui.service.port }}:{{ .Values.ui.service.port }}
+  echo "UI URL: http://localhost:{{ .Values.ui.service.port }}"
+{{- end }}
+{{- end }}
+
+{{- if .Values.api.enabled }}
+
+=== Flag Manager API ===
+{{- if contains "ClusterIP" .Values.api.service.type }}
+  kubectl port-forward --namespace {{ include "goff-manager.namespace" . }} svc/{{ include "goff-manager.api.fullname" . }} {{ .Values.api.service.port }}:{{ .Values.api.service.port }}
+  echo "API URL: http://localhost:{{ .Values.api.service.port }}"
+{{- end }}
+  Internal URL: {{ include "goff-manager.api.internalUrl" . }}
+{{- end }}
+
+{{- if .Values.relayProxy.enabled }}
+
+=== GO Feature Flag Relay Proxy ===
+{{- if contains "ClusterIP" .Values.relayProxy.service.type }}
+  kubectl port-forward --namespace {{ include "goff-manager.namespace" . }} svc/{{ include "goff-manager.relayProxy.fullname" . }} {{ .Values.relayProxy.service.port }}:{{ .Values.relayProxy.service.port }}
+  echo "Relay Proxy URL: http://localhost:{{ .Values.relayProxy.service.port }}"
+{{- end }}
+  Internal URL: {{ include "goff-manager.relayProxy.internalUrl" . }}
+{{- end }}
+
+=== Quick Start ===
+
+1. Access the UI and create your first feature flag
+
+2. Use the relay proxy in your application:
+   - Endpoint: {{ include "goff-manager.relayProxy.internalUrl" . }}
+   - Evaluate flags: POST /v1/feature/{flagKey}/eval
+   - Get all flags: GET /v1/allflags
+
+3. For SDK integration, see: https://gofeatureflag.org/docs/
+
+{{- if .Values.api.git.provider }}
+
+=== Git Integration ===
+Git provider: {{ .Values.api.git.provider }}
+{{- if eq .Values.api.git.provider "ado" }}
+Azure DevOps project: {{ .Values.api.git.ado.project }}
+{{- else if eq .Values.api.git.provider "gitlab" }}
+GitLab project ID: {{ .Values.api.git.gitlab.projectId }}
+{{- end }}
+Base branch: {{ .Values.api.git.baseBranch }}
+Flags path: {{ .Values.api.git.flagsPath }}
+{{- end }}
+
+=== Useful Commands ===
+
+# Check pod status
+kubectl get pods --namespace {{ include "goff-manager.namespace" . }} -l "app.kubernetes.io/instance={{ .Release.Name }}"
+
+# View API logs
+kubectl logs --namespace {{ include "goff-manager.namespace" . }} -l "app.kubernetes.io/component=api" -f
+
+# View UI logs
+kubectl logs --namespace {{ include "goff-manager.namespace" . }} -l "app.kubernetes.io/component=ui" -f
+
+# View Relay Proxy logs
+kubectl logs --namespace {{ include "goff-manager.namespace" . }} -l "app.kubernetes.io/component=relay-proxy" -f
+
+# Force flag refresh
+curl -X POST {{ include "goff-manager.api.internalUrl" . }}/api/admin/refresh
+
+For more information, visit: https://gofeatureflag.org/

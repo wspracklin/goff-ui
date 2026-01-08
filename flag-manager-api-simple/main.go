@@ -196,6 +196,11 @@ func main() {
 	r.HandleFunc("/api/flagsets/{id}", fm.deleteFlagSetHandler).Methods("DELETE")
 	r.HandleFunc("/api/flagsets/{id}/apikey", fm.generateFlagSetAPIKeyHandler).Methods("POST")
 	r.HandleFunc("/api/flagsets/{id}/apikey", fm.removeFlagSetAPIKeyHandler).Methods("DELETE")
+	r.HandleFunc("/api/flagsets/{id}/flags", fm.listFlagSetFlagsHandler).Methods("GET")
+	r.HandleFunc("/api/flagsets/{id}/flags/{flagKey}", fm.getFlagSetFlagHandler).Methods("GET")
+	r.HandleFunc("/api/flagsets/{id}/flags/{flagKey}", fm.createFlagSetFlagHandler).Methods("POST")
+	r.HandleFunc("/api/flagsets/{id}/flags/{flagKey}", fm.updateFlagSetFlagHandler).Methods("PUT")
+	r.HandleFunc("/api/flagsets/{id}/flags/{flagKey}", fm.deleteFlagSetFlagHandler).Methods("DELETE")
 	r.HandleFunc("/api/flagsets/config/relay-proxy", fm.generateRelayProxyConfigHandler).Methods("GET")
 
 	// Notifiers management

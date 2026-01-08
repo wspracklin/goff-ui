@@ -1,0 +1,17 @@
+apiVersion: v2
+name: goff-manager
+description: A Helm chart for GO Feature Flag Management System - Web UI for managing feature flags with git workflows, notifications, and multiple storage backends
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - feature-flags
+  - go-feature-flag
+  - feature-management
+  - toggles
+home: https://gofeatureflag.org/
+sources:
+  - https://github.com/thomaspoignant/go-feature-flag
+maintainers:
+  - name: Your Name
+    email: your-email@example.com

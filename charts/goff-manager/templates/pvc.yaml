@@ -1,0 +1,19 @@
+{{- if and .Values.api.enabled .Values.api.persistence.enabled (not .Values.api.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "goff-manager.api.pvcName" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.api.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.api.persistence.accessModes | nindent 4 }}
+  {{- $storageClass := include "goff-manager.storageClass" . }}
+  {{- if $storageClass }}
+  storageClassName: {{ $storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.api.persistence.size | quote }}
+{{- end }}

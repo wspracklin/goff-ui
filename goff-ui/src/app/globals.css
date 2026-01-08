@@ -12,13 +12,15 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Dark mode via class */
 .dark {
   --background: #0a0a0a;
   --foreground: #ededed;
 }
 
+/* System preference fallback when no class is set */
 @media (prefers-color-scheme: dark) {
-  :root:not(.light) {
+  html:not(.light):not(.dark) {
     --background: #0a0a0a;
     --foreground: #ededed;
   }

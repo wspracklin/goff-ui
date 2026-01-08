@@ -1,8 +1,9 @@
 # GO Feature Flag Relay Proxy Configuration
 # Supports multiple retriever backends via environment variables
 
-listen: 1031
-host: 0.0.0.0
+server:
+  port: 1031
+  host: 0.0.0.0
 
 # =============================================================================
 # Retriever Configuration

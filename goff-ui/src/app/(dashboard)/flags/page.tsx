@@ -76,12 +76,13 @@ function FlagsPageContent() {
     queryFn: async () => {
       const res = await fetch('/api/flagsets');
       if (!res.ok) throw new Error('Failed to fetch flag sets');
-      return res.json() as Promise<{ flagSets: FlagSet[] }>;
+      const data = await res.json();
+      return data.flagSets as FlagSet[];
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const selectedFlagSetName = flagSetsQuery.data?.flagSets?.find(fs => fs.id === selectedFlagSet)?.name;
+  const selectedFlagSetName = flagSetsQuery.data?.find(fs => fs.id === selectedFlagSet)?.name;
 
   // Quick flag dialog state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -109,17 +110,27 @@ function FlagsPageContent() {
     router.replace(`/flags${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false });
   };
 
-  // In dev mode, fetch from local flags file; otherwise from relay proxy
+  // In dev mode, fetch from local flags file; otherwise fetch by flagset
   const flagsQuery = useQuery({
-    queryKey: isDevMode ? ['local-flags'] : ['flags-config'],
+    queryKey: isDevMode ? ['local-flags'] : ['flagset-flags', selectedFlagSet],
     queryFn: async () => {
       if (isDevMode) {
         const result = await localFlagAPI.listFlags();
         return { flags: result.flags };
       }
+      // Fetch flags for the selected flagset
+      if (selectedFlagSet) {
+        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch flags');
+        }
+        const data = await response.json();
+        return { flags: data.flags || {} };
+      }
+      // Fallback to relay proxy if no flagset selected
       return goffClient.getFlagConfiguration();
     },
-    enabled: isDevMode || isConnected,
+    enabled: isDevMode || (isConnected && !!selectedFlagSet),
     refetchInterval: 30000,
   });
 
@@ -316,7 +327,22 @@ function FlagsPageContent() {
     };
 
     try {
-      await localFlagAPI.createFlag(quickFlagKey.trim(), quickFlagConfig);
+      if (isDevMode) {
+        await localFlagAPI.createFlag(quickFlagKey.trim(), quickFlagConfig);
+      } else if (selectedFlagSet) {
+        // Create flag in the selected flagset
+        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags/${quickFlagKey.trim()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(quickFlagConfig),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create flag');
+        }
+      } else {
+        throw new Error('No flagset selected');
+      }
       toast.success(`Flag "${quickFlagKey}" created`);
 
       // Reset form and close dialog
@@ -326,7 +352,7 @@ function FlagsPageContent() {
 
       // Refresh flags list
       await queryClient.invalidateQueries({ queryKey: ['local-flags'] });
-      await queryClient.invalidateQueries({ queryKey: ['flags-config'] });
+      await queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create flag');
     } finally {
@@ -337,7 +363,9 @@ function FlagsPageContent() {
   const filteredFlags = useMemo(() => {
     if (!flagsQuery.data?.flags) return [];
 
-    return Object.entries(flagsQuery.data.flags)
+    const flags = flagsQuery.data.flags as Record<string, LocalFlagConfig | FlagConfiguration>;
+
+    return Object.entries(flags)
       .filter(([key, flag]) => {
         // Search filter
         if (search && !key.toLowerCase().includes(search.toLowerCase())) {
@@ -542,7 +570,15 @@ function FlagsPageContent() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {flagsQuery.isLoading ? (
+          {!isDevMode && !selectedFlagSet ? (
+            <div className="text-center py-8">
+              <Layers className="mx-auto h-12 w-12 text-zinc-300 dark:text-zinc-700" />
+              <p className="mt-4 text-zinc-500">No flag set selected</p>
+              <p className="mt-2 text-sm text-zinc-400">
+                Select a flag set from the sidebar to view its flags
+              </p>
+            </div>
+          ) : flagsQuery.isLoading ? (
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
