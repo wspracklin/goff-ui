@@ -82,9 +82,11 @@ export function Sidebar() {
   return (
     <div className="flex h-full w-64 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-2 border-b border-zinc-200 px-6 dark:border-zinc-800">
-        <Flag className="h-6 w-6 text-blue-600" />
-        <span className="text-lg font-semibold">GO Feature Flag</span>
+      <div className="flex h-16 items-center gap-3 border-b border-zinc-200 px-6 dark:border-zinc-800">
+        <img src="/logo.svg" alt="GO Feature Flag" className="h-8 w-8" />
+        <span className="text-lg font-semibold">
+          <span className="text-indigo-600 dark:text-indigo-400">GO</span> Feature Flag
+        </span>
       </div>
 
       {/* Flagset Selector */}

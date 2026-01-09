@@ -25,6 +25,20 @@ import { useAppStore } from '@/lib/store';
 import { formatDate } from '@/lib/utils';
 import { useWebSocketContext } from '@/components/providers/websocket-provider';
 
+// Helper to extract the actual flag key from a WebSocket key that may include flagset prefix
+// e.g., "flagset-xxx/my-flag" -> "my-flag"
+function extractFlagKey(key: string): string {
+  // Check if key contains a flagset prefix pattern
+  if (key.includes('/')) {
+    const parts = key.split('/');
+    // If the first part looks like a flagset ID, return just the flag key
+    if (parts[0].startsWith('flagset-') || parts[0].match(/^[a-f0-9-]{36}$/i)) {
+      return parts.slice(1).join('/');
+    }
+  }
+  return key;
+}
+
 export default function ActivityPage() {
   const { isConnected, isDevMode, flagUpdates, clearFlagUpdates } = useAppStore();
   const { wsStatus, reconnect } = useWebSocketContext();
@@ -166,15 +180,18 @@ export default function ActivityPage() {
                         </span>
                       </div>
                       <div className="space-y-1 pl-6">
-                        {Object.keys(update.added).map((flagKey) => (
-                          <Link
-                            key={flagKey}
-                            href={`/flags/${flagKey}`}
-                            className="block text-sm hover:text-blue-600"
-                          >
-                            {flagKey}
-                          </Link>
-                        ))}
+                        {Object.keys(update.added).map((rawKey) => {
+                          const flagKey = extractFlagKey(rawKey);
+                          return (
+                            <Link
+                              key={rawKey}
+                              href={`/flags/${flagKey}`}
+                              className="block text-sm hover:text-blue-600"
+                            >
+                              {flagKey}
+                            </Link>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -189,14 +206,17 @@ export default function ActivityPage() {
                         </span>
                       </div>
                       <div className="space-y-1 pl-6">
-                        {Object.keys(update.deleted).map((flagKey) => (
-                          <span
-                            key={flagKey}
-                            className="block text-sm text-zinc-500 line-through"
-                          >
-                            {flagKey}
-                          </span>
-                        ))}
+                        {Object.keys(update.deleted).map((rawKey) => {
+                          const flagKey = extractFlagKey(rawKey);
+                          return (
+                            <span
+                              key={rawKey}
+                              className="block text-sm text-zinc-500 line-through"
+                            >
+                              {flagKey}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -211,15 +231,18 @@ export default function ActivityPage() {
                         </span>
                       </div>
                       <div className="space-y-1 pl-6">
-                        {Object.keys(update.updated).map((flagKey) => (
-                          <Link
-                            key={flagKey}
-                            href={`/flags/${flagKey}`}
-                            className="block text-sm hover:text-blue-600"
-                          >
-                            {flagKey}
-                          </Link>
-                        ))}
+                        {Object.keys(update.updated).map((rawKey) => {
+                          const flagKey = extractFlagKey(rawKey);
+                          return (
+                            <Link
+                              key={rawKey}
+                              href={`/flags/${flagKey}`}
+                              className="block text-sm hover:text-blue-600"
+                            >
+                              {flagKey}
+                            </Link>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

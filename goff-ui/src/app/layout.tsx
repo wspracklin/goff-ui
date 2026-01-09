@@ -16,6 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'GO Feature Flag UI',
   description: 'Management UI for GO Feature Flag',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({
