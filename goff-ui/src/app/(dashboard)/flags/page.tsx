@@ -110,21 +110,30 @@ function FlagsPageContent() {
     router.replace(`/flags${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false });
   };
 
-  // Fetch flags from the selected flagset
+  // Fetch flags from the selected flagset, or fallback to local/relay proxy
   const flagsQuery = useQuery({
-    queryKey: ['flagset-flags', selectedFlagSet],
+    queryKey: selectedFlagSet ? ['flagset-flags', selectedFlagSet] : (isDevMode ? ['local-flags'] : ['flags-config']),
     queryFn: async () => {
-      if (!selectedFlagSet) {
-        return { flags: {} };
+      // If a flagset is selected, fetch from that flagset
+      if (selectedFlagSet) {
+        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch flags from flagset');
+        }
+        const data = await response.json();
+        return { flags: data.flags || {}, flagSet: data.flagSet };
       }
-      const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch flags');
+
+      // No flagset selected - fall back to local/relay proxy
+      if (isDevMode) {
+        const result = await localFlagAPI.listFlags();
+        return { flags: result.flags };
       }
-      const data = await response.json();
-      return { flags: data.flags || {}, flagSet: data.flagSet };
+
+      // Production mode - use relay proxy
+      return goffClient.getFlagConfiguration();
     },
-    enabled: !!selectedFlagSet,
+    enabled: !!selectedFlagSet || isDevMode || isConnected,
     refetchInterval: 30000,
   });
 
@@ -366,20 +375,26 @@ function FlagsPageContent() {
     };
 
     try {
-      if (!selectedFlagSet) {
-        throw new Error('Please select a flag set first');
+      if (selectedFlagSet) {
+        // Create in the selected flagset
+        const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags/${quickFlagKey.trim()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(quickFlagConfig),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create flag');
+        }
+        await queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
+      } else if (isDevMode) {
+        // Create via local API in dev mode
+        await localFlagAPI.createFlag(quickFlagKey.trim(), quickFlagConfig);
+        await queryClient.invalidateQueries({ queryKey: ['local-flags'] });
+      } else {
+        // Production mode without flagset - can't create flags on relay proxy
+        throw new Error('Cannot create flags in production mode without a flag set. The relay proxy is read-only.');
       }
-
-      const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags/${quickFlagKey.trim()}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(quickFlagConfig),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create flag');
-      }
-      await queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
       toast.success(`Flag "${quickFlagKey}" created`);
 
       // Reset form and close dialog

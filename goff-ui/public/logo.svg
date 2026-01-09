@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Flag pole -->
+  <rect x="4" y="4" width="3" height="24" rx="1" fill="#6366F1"/>
+  <!-- Flag body -->
+  <path d="M7 5h17a2 2 0 0 1 1.4 3.4L21 12l4.4 3.6A2 2 0 0 1 24 19H7V5z" fill="#6366F1"/>
+  <!-- Toggle track -->
+  <rect x="11" y="9" width="10" height="5" rx="2.5" fill="#4338CA"/>
+  <!-- Toggle knob (enabled state) -->
+  <circle cx="18.5" cy="11.5" r="2" fill="#10B981"/>
+</svg>

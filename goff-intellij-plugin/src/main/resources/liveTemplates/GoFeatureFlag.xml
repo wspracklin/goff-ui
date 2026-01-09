@@ -1,0 +1,251 @@
+<templateSet group="GO Feature Flag">
+    <!-- JavaScript/TypeScript Templates -->
+    <template name="goffbool" value="const $FLAG_NAME$Value = await client.getBooleanValue('$FLAG_KEY$', $DEFAULT$);&#10;&#10;if ($FLAG_NAME$Value) {&#10;    $ENABLED_CODE$&#10;} else {&#10;    $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="FLAG_NAME" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_SCRIPT" value="true"/>
+            <option name="TypeScript" value="true"/>
+        </context>
+    </template>
+
+    <template name="goffstr" value="const $FLAG_NAME$Value = await client.getStringValue('$FLAG_KEY$', '$DEFAULT$');&#10;&#10;switch ($FLAG_NAME$Value) {&#10;    case '$VARIANT_A$':&#10;        $CODE_A$&#10;        break;&#10;    case '$VARIANT_B$':&#10;        $CODE_B$&#10;        break;&#10;    default:&#10;        $DEFAULT_CODE$&#10;}" description="GO Feature Flag string switch" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="FLAG_NAME" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="default" alwaysStopAt="true"/>
+        <variable name="VARIANT_A" expression="" defaultValue="variant-a" alwaysStopAt="true"/>
+        <variable name="VARIANT_B" expression="" defaultValue="variant-b" alwaysStopAt="true"/>
+        <variable name="CODE_A" expression="" defaultValue="// Handle variant A" alwaysStopAt="true"/>
+        <variable name="CODE_B" expression="" defaultValue="// Handle variant B" alwaysStopAt="true"/>
+        <variable name="DEFAULT_CODE" expression="" defaultValue="// Handle default" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_SCRIPT" value="true"/>
+            <option name="TypeScript" value="true"/>
+        </context>
+    </template>
+
+    <!-- Python Templates -->
+    <template name="goffbool" value="$flag_name$_value = client.get_boolean_value('$FLAG_KEY$', $DEFAULT$)&#10;&#10;if $flag_name$_value:&#10;    $ENABLED_CODE$&#10;else:&#10;    $DISABLED_CODE$" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flag_name" expression="snakeCase(FLAG_KEY)" defaultValue="my_feature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="False" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="# Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="# Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="Python" value="true"/>
+        </context>
+    </template>
+
+    <template name="goffstr" value="$flag_name$_value = client.get_string_value('$FLAG_KEY$', '$DEFAULT$')&#10;&#10;match $flag_name$_value:&#10;    case '$VARIANT_A$':&#10;        $CODE_A$&#10;    case '$VARIANT_B$':&#10;        $CODE_B$&#10;    case _:&#10;        $DEFAULT_CODE$" description="GO Feature Flag string match" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flag_name" expression="snakeCase(FLAG_KEY)" defaultValue="my_feature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="default" alwaysStopAt="true"/>
+        <variable name="VARIANT_A" expression="" defaultValue="variant-a" alwaysStopAt="true"/>
+        <variable name="VARIANT_B" expression="" defaultValue="variant-b" alwaysStopAt="true"/>
+        <variable name="CODE_A" expression="" defaultValue="# Handle variant A" alwaysStopAt="true"/>
+        <variable name="CODE_B" expression="" defaultValue="# Handle variant B" alwaysStopAt="true"/>
+        <variable name="DEFAULT_CODE" expression="" defaultValue="# Handle default" alwaysStopAt="true"/>
+        <context>
+            <option name="Python" value="true"/>
+        </context>
+    </template>
+
+    <!-- Java Templates -->
+    <template name="goffbool" value="boolean $flagName$Value = client.getBooleanValue(&quot;$FLAG_KEY$&quot;, $DEFAULT$);&#10;&#10;if ($flagName$Value) {&#10;    $ENABLED_CODE$&#10;} else {&#10;    $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="JAVA_CODE" value="true"/>
+        </context>
+    </template>
+
+    <!-- Kotlin Templates -->
+    <template name="goffbool" value="val $flagName$Value = client.getBooleanValue(&quot;$FLAG_KEY$&quot;, $DEFAULT$)&#10;&#10;if ($flagName$Value) {&#10;    $ENABLED_CODE$&#10;} else {&#10;    $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN_EXPRESSION" value="true"/>
+            <option name="KOTLIN_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <template name="goffwhen" value="val $flagName$Value = client.getStringValue(&quot;$FLAG_KEY$&quot;, &quot;$DEFAULT$&quot;)&#10;&#10;when ($flagName$Value) {&#10;    &quot;$VARIANT_A$&quot; -&gt; {&#10;        $CODE_A$&#10;    }&#10;    &quot;$VARIANT_B$&quot; -&gt; {&#10;        $CODE_B$&#10;    }&#10;    else -&gt; {&#10;        $DEFAULT_CODE$&#10;    }&#10;}" description="GO Feature Flag string when" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="default" alwaysStopAt="true"/>
+        <variable name="VARIANT_A" expression="" defaultValue="variant-a" alwaysStopAt="true"/>
+        <variable name="VARIANT_B" expression="" defaultValue="variant-b" alwaysStopAt="true"/>
+        <variable name="CODE_A" expression="" defaultValue="// Handle variant A" alwaysStopAt="true"/>
+        <variable name="CODE_B" expression="" defaultValue="// Handle variant B" alwaysStopAt="true"/>
+        <variable name="DEFAULT_CODE" expression="" defaultValue="// Handle default" alwaysStopAt="true"/>
+        <context>
+            <option name="KOTLIN_EXPRESSION" value="true"/>
+            <option name="KOTLIN_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <!-- Go Templates -->
+    <template name="goffbool" value="$flagName$Value, err := client.BooleanValue(ctx, &quot;$FLAG_KEY$&quot;, $DEFAULT$, openfeature.EvaluationContext{})&#10;if err != nil {&#10;    log.Printf(&quot;Error evaluating flag: %v&quot;, err)&#10;}&#10;&#10;if $flagName$Value {&#10;    $ENABLED_CODE$&#10;} else {&#10;    $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="GO_FILE" value="true"/>
+        </context>
+    </template>
+
+    <!-- Rust Templates -->
+    <template name="goffbool" value="let $flag_name$_value = client.get_boolean_value(&quot;$FLAG_KEY$&quot;, $DEFAULT$).await?;&#10;&#10;if $flag_name$_value {&#10;    $ENABLED_CODE$&#10;} else {&#10;    $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flag_name" expression="snakeCase(FLAG_KEY)" defaultValue="my_feature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="Rust" value="true"/>
+        </context>
+    </template>
+
+    <!-- C# Templates -->
+    <template name="goffbool" value="var $flagName$Value = await client.GetBooleanValueAsync(&quot;$FLAG_KEY$&quot;, $DEFAULT$);&#10;&#10;if ($flagName$Value)&#10;{&#10;    $ENABLED_CODE$&#10;}&#10;else&#10;{&#10;    $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="CSHARP_EXPRESSION" value="true"/>
+            <option name="CSHARP_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <template name="goffstr" value="var $flagName$Value = await client.GetStringValueAsync(&quot;$FLAG_KEY$&quot;, &quot;$DEFAULT$&quot;);&#10;&#10;switch ($flagName$Value)&#10;{&#10;    case &quot;$VARIANT_A$&quot;:&#10;        $CODE_A$&#10;        break;&#10;    case &quot;$VARIANT_B$&quot;:&#10;        $CODE_B$&#10;        break;&#10;    default:&#10;        $DEFAULT_CODE$&#10;        break;&#10;}" description="GO Feature Flag string switch" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="default" alwaysStopAt="true"/>
+        <variable name="VARIANT_A" expression="" defaultValue="variant-a" alwaysStopAt="true"/>
+        <variable name="VARIANT_B" expression="" defaultValue="variant-b" alwaysStopAt="true"/>
+        <variable name="CODE_A" expression="" defaultValue="// Handle variant A" alwaysStopAt="true"/>
+        <variable name="CODE_B" expression="" defaultValue="// Handle variant B" alwaysStopAt="true"/>
+        <variable name="DEFAULT_CODE" expression="" defaultValue="// Handle default" alwaysStopAt="true"/>
+        <context>
+            <option name="CSHARP_EXPRESSION" value="true"/>
+            <option name="CSHARP_STATEMENT" value="true"/>
+        </context>
+    </template>
+
+    <!-- PHP Templates -->
+    <template name="goffbool" value="$$${flagName}Value = $client-&gt;getBooleanValue('$FLAG_KEY$', $DEFAULT$);&#10;&#10;if ($$${flagName}Value) {&#10;    $ENABLED_CODE$&#10;} else {&#10;    $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="PHP" value="true"/>
+        </context>
+    </template>
+
+    <template name="goffstr" value="$$${flagName}Value = $client-&gt;getStringValue('$FLAG_KEY$', '$DEFAULT$');&#10;&#10;switch ($$${flagName}Value) {&#10;    case '$VARIANT_A$':&#10;        $CODE_A$&#10;        break;&#10;    case '$VARIANT_B$':&#10;        $CODE_B$&#10;        break;&#10;    default:&#10;        $DEFAULT_CODE$&#10;}" description="GO Feature Flag string switch" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="default" alwaysStopAt="true"/>
+        <variable name="VARIANT_A" expression="" defaultValue="variant-a" alwaysStopAt="true"/>
+        <variable name="VARIANT_B" expression="" defaultValue="variant-b" alwaysStopAt="true"/>
+        <variable name="CODE_A" expression="" defaultValue="// Handle variant A" alwaysStopAt="true"/>
+        <variable name="CODE_B" expression="" defaultValue="// Handle variant B" alwaysStopAt="true"/>
+        <variable name="DEFAULT_CODE" expression="" defaultValue="// Handle default" alwaysStopAt="true"/>
+        <context>
+            <option name="PHP" value="true"/>
+        </context>
+    </template>
+
+    <!-- Ruby Templates -->
+    <template name="goffbool" value="$flag_name$_value = client.get_boolean_value('$FLAG_KEY$', $DEFAULT$)&#10;&#10;if $flag_name$_value&#10;  $ENABLED_CODE$&#10;else&#10;  $DISABLED_CODE$&#10;end" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flag_name" expression="snakeCase(FLAG_KEY)" defaultValue="my_feature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="# Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="# Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="Ruby" value="true"/>
+        </context>
+    </template>
+
+    <template name="goffstr" value="$flag_name$_value = client.get_string_value('$FLAG_KEY$', '$DEFAULT$')&#10;&#10;case $flag_name$_value&#10;when '$VARIANT_A$'&#10;  $CODE_A$&#10;when '$VARIANT_B$'&#10;  $CODE_B$&#10;else&#10;  $DEFAULT_CODE$&#10;end" description="GO Feature Flag string case" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flag_name" expression="snakeCase(FLAG_KEY)" defaultValue="my_feature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="default" alwaysStopAt="true"/>
+        <variable name="VARIANT_A" expression="" defaultValue="variant-a" alwaysStopAt="true"/>
+        <variable name="VARIANT_B" expression="" defaultValue="variant-b" alwaysStopAt="true"/>
+        <variable name="CODE_A" expression="" defaultValue="# Handle variant A" alwaysStopAt="true"/>
+        <variable name="CODE_B" expression="" defaultValue="# Handle variant B" alwaysStopAt="true"/>
+        <variable name="DEFAULT_CODE" expression="" defaultValue="# Handle default" alwaysStopAt="true"/>
+        <context>
+            <option name="Ruby" value="true"/>
+        </context>
+    </template>
+
+    <!-- Swift Templates -->
+    <template name="goffbool" value="let $flagName$Value = try await client.getBooleanValue(key: &quot;$FLAG_KEY$&quot;, defaultValue: $DEFAULT$)&#10;&#10;if $flagName$Value {&#10;    $ENABLED_CODE$&#10;} else {&#10;    $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="Swift" value="true"/>
+        </context>
+    </template>
+
+    <template name="goffstr" value="let $flagName$Value = try await client.getStringValue(key: &quot;$FLAG_KEY$&quot;, defaultValue: &quot;$DEFAULT$&quot;)&#10;&#10;switch $flagName$Value {&#10;case &quot;$VARIANT_A$&quot;:&#10;    $CODE_A$&#10;case &quot;$VARIANT_B$&quot;:&#10;    $CODE_B$&#10;default:&#10;    $DEFAULT_CODE$&#10;}" description="GO Feature Flag string switch" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="default" alwaysStopAt="true"/>
+        <variable name="VARIANT_A" expression="" defaultValue="variant-a" alwaysStopAt="true"/>
+        <variable name="VARIANT_B" expression="" defaultValue="variant-b" alwaysStopAt="true"/>
+        <variable name="CODE_A" expression="" defaultValue="// Handle variant A" alwaysStopAt="true"/>
+        <variable name="CODE_B" expression="" defaultValue="// Handle variant B" alwaysStopAt="true"/>
+        <variable name="DEFAULT_CODE" expression="" defaultValue="// Handle default" alwaysStopAt="true"/>
+        <context>
+            <option name="Swift" value="true"/>
+        </context>
+    </template>
+
+    <!-- Dart Templates -->
+    <template name="goffbool" value="final $flagName$Value = await client.getBooleanValue('$FLAG_KEY$', $DEFAULT$);&#10;&#10;if ($flagName$Value) {&#10;  $ENABLED_CODE$&#10;} else {&#10;  $DISABLED_CODE$&#10;}" description="GO Feature Flag boolean check" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="false" alwaysStopAt="true"/>
+        <variable name="ENABLED_CODE" expression="" defaultValue="// Flag enabled" alwaysStopAt="true"/>
+        <variable name="DISABLED_CODE" expression="" defaultValue="// Flag disabled" alwaysStopAt="true"/>
+        <context>
+            <option name="Dart" value="true"/>
+        </context>
+    </template>
+
+    <template name="goffstr" value="final $flagName$Value = await client.getStringValue('$FLAG_KEY$', '$DEFAULT$');&#10;&#10;switch ($flagName$Value) {&#10;  case '$VARIANT_A$':&#10;    $CODE_A$&#10;    break;&#10;  case '$VARIANT_B$':&#10;    $CODE_B$&#10;    break;&#10;  default:&#10;    $DEFAULT_CODE$&#10;}" description="GO Feature Flag string switch" toReformat="true" toShortenFQNames="true">
+        <variable name="FLAG_KEY" expression="" defaultValue="&quot;my-feature&quot;" alwaysStopAt="true"/>
+        <variable name="flagName" expression="camelCase(FLAG_KEY)" defaultValue="myFeature" alwaysStopAt="false"/>
+        <variable name="DEFAULT" expression="" defaultValue="default" alwaysStopAt="true"/>
+        <variable name="VARIANT_A" expression="" defaultValue="variant-a" alwaysStopAt="true"/>
+        <variable name="VARIANT_B" expression="" defaultValue="variant-b" alwaysStopAt="true"/>
+        <variable name="CODE_A" expression="" defaultValue="// Handle variant A" alwaysStopAt="true"/>
+        <variable name="CODE_B" expression="" defaultValue="// Handle variant B" alwaysStopAt="true"/>
+        <variable name="DEFAULT_CODE" expression="" defaultValue="// Handle default" alwaysStopAt="true"/>
+        <context>
+            <option name="Dart" value="true"/>
+        </context>
+    </template>
+</templateSet>

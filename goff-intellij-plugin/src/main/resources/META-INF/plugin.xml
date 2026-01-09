@@ -1,0 +1,177 @@
+<idea-plugin>
+    <id>com.gofeatureflag.intellij</id>
+    <name>GO Feature Flag</name>
+    <vendor email="support@gofeatureflag.org" url="https://gofeatureflag.org">GO Feature Flag</vendor>
+
+    <description><![CDATA[
+    <p>Integrate GO Feature Flag directly into your IDE.</p>
+    <ul>
+        <li>Insert feature flag checks with if/else or if/else if/else blocks</li>
+        <li>Create new feature flags from the context menu</li>
+        <li>Auto-import required libraries and SDK references</li>
+        <li>Code completion for flag keys</li>
+        <li>Gutter icons showing flag usage</li>
+        <li>Quick search popup (Ctrl+Shift+G)</li>
+        <li>Support for multiple languages: Go, JavaScript/TypeScript, Python, Java, Kotlin, Rust, PHP, Ruby, Swift, C#, Flutter/Dart</li>
+    </ul>
+    <p>Right-click in your code editor or use keyboard shortcuts to access GO Feature Flag actions.</p>
+    ]]></description>
+
+    <change-notes><![CDATA[
+    <h3>1.1.0</h3>
+    <ul>
+        <li>Added keyboard shortcuts (Alt+Shift+F for insert, Ctrl+Shift+G for quick search)</li>
+        <li>Code completion for flag keys in strings</li>
+        <li>Quick search popup for fast flag insertion</li>
+        <li>Gutter icons for flag check lines</li>
+        <li>Inline hints showing flag status</li>
+        <li>Recent flags quick access</li>
+        <li>Background flag sync with caching</li>
+        <li>Hover documentation for flags</li>
+    </ul>
+    <h3>1.0.0</h3>
+    <ul>
+        <li>Initial release</li>
+        <li>Insert flag checks via context menu</li>
+        <li>Create flags from IDE</li>
+        <li>Multi-language support</li>
+    </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Settings -->
+        <applicationService serviceImplementation="com.gofeatureflag.intellij.settings.GoffSettings"/>
+        <applicationConfigurable
+                parentId="tools"
+                instance="com.gofeatureflag.intellij.settings.GoffSettingsConfigurable"
+                id="com.gofeatureflag.intellij.settings.GoffSettingsConfigurable"
+                displayName="GO Feature Flag"/>
+
+        <!-- Flag Cache Service -->
+        <applicationService serviceImplementation="com.gofeatureflag.intellij.services.FlagCacheService"/>
+
+        <!-- Notifications -->
+        <notificationGroup id="GO Feature Flag" displayType="BALLOON"/>
+
+        <!-- Code Completion -->
+        <completion.contributor
+                language="any"
+                implementationClass="com.gofeatureflag.intellij.completion.FlagKeyCompletionContributor"
+                order="first"/>
+
+        <!-- Gutter Icons / Line Markers -->
+        <codeInsight.lineMarkerProvider
+                language=""
+                implementationClass="com.gofeatureflag.intellij.markers.FlagLineMarkerProvider"/>
+
+        <!-- Inline Hints -->
+        <codeInsight.inlayProvider
+                language=""
+                implementationClass="com.gofeatureflag.intellij.hints.FlagInlayHintsProvider"/>
+
+        <!-- Documentation Provider -->
+        <documentationProvider implementation="com.gofeatureflag.intellij.documentation.FlagDocumentationProvider"/>
+
+        <!-- Annotator for flag validation -->
+        <annotator
+                language=""
+                implementationClass="com.gofeatureflag.intellij.annotators.FlagKeyAnnotator"/>
+
+        <!-- Startup Activity for background sync -->
+        <postStartupActivity implementation="com.gofeatureflag.intellij.startup.FlagSyncStartupActivity"/>
+    </extensions>
+
+    <actions>
+        <!-- Main action group in editor popup menu -->
+        <group id="GoFeatureFlag.EditorPopupMenu"
+               text="GO Feature Flag"
+               description="GO Feature Flag actions"
+               popup="true"
+               icon="/icons/goff-icon.svg">
+
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+
+            <action id="GoFeatureFlag.InsertFlagCheck"
+                    class="com.gofeatureflag.intellij.actions.InsertFlagCheckAction"
+                    text="Insert Flag Check"
+                    description="Insert a feature flag check at cursor position"
+                    icon="/icons/flag-check.svg">
+                <keyboard-shortcut keymap="$default" first-keystroke="alt shift F"/>
+            </action>
+
+            <action id="GoFeatureFlag.WrapWithFlagCheck"
+                    class="com.gofeatureflag.intellij.actions.WrapWithFlagCheckAction"
+                    text="Wrap Selection with Flag Check"
+                    description="Wrap selected code with a feature flag check"
+                    icon="/icons/flag-wrap.svg">
+                <keyboard-shortcut keymap="$default" first-keystroke="alt shift W"/>
+            </action>
+
+            <separator/>
+
+            <action id="GoFeatureFlag.CreateFlag"
+                    class="com.gofeatureflag.intellij.actions.CreateFlagAction"
+                    text="Create New Flag..."
+                    description="Create a new feature flag"
+                    icon="/icons/flag-add.svg">
+                <keyboard-shortcut keymap="$default" first-keystroke="alt shift N"/>
+            </action>
+
+            <separator/>
+
+            <action id="GoFeatureFlag.RefreshFlags"
+                    class="com.gofeatureflag.intellij.actions.RefreshFlagsAction"
+                    text="Refresh Flags"
+                    description="Refresh the list of available flags from the server"/>
+        </group>
+
+        <!-- Quick Search Action (available globally) -->
+        <action id="GoFeatureFlag.QuickSearch"
+                class="com.gofeatureflag.intellij.actions.QuickSearchAction"
+                text="Quick Insert Flag"
+                description="Quick search and insert a feature flag"
+                icon="/icons/goff-icon.svg">
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift G"/>
+            <add-to-group group-id="GoToMenu" anchor="last"/>
+        </action>
+
+        <!-- Recent Flags Action -->
+        <action id="GoFeatureFlag.RecentFlags"
+                class="com.gofeatureflag.intellij.actions.RecentFlagsAction"
+                text="Recent Flags"
+                description="Show recently used flags">
+            <keyboard-shortcut keymap="$default" first-keystroke="alt shift R"/>
+        </action>
+
+        <!-- Tools menu group -->
+        <group id="GoFeatureFlag.ToolsMenu"
+               text="GO Feature Flag"
+               description="GO Feature Flag tools"
+               popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <action id="GoFeatureFlag.OpenSettings"
+                    class="com.gofeatureflag.intellij.actions.OpenSettingsAction"
+                    text="Settings..."
+                    description="Open GO Feature Flag settings"/>
+
+            <action id="GoFeatureFlag.ViewFlags"
+                    class="com.gofeatureflag.intellij.actions.ViewFlagsAction"
+                    text="View All Flags"
+                    description="View all available feature flags"/>
+
+            <action id="GoFeatureFlag.AddDependencies"
+                    class="com.gofeatureflag.intellij.actions.AddDependenciesAction"
+                    text="Add OpenFeature Dependencies..."
+                    description="Add OpenFeature SDK dependencies to your project"
+                    icon="/icons/flag-add.svg"/>
+
+            <separator/>
+
+            <reference ref="GoFeatureFlag.QuickSearch"/>
+            <reference ref="GoFeatureFlag.RecentFlags"/>
+        </group>
+    </actions>
+</idea-plugin>

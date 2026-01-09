@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="40" viewBox="0 0 180 40">
+  <!-- Icon -->
+  <g transform="translate(4, 4)">
+    <!-- Flag pole -->
+    <rect x="2" y="2" width="2.5" height="28" rx="0.5" fill="#6366F1"/>
+    <!-- Flag body -->
+    <path d="M4.5 3h15a1.5 1.5 0 0 1 1 2.6L17 9l3.5 3.4a1.5 1.5 0 0 1-1 2.6h-15V3z" fill="#6366F1"/>
+    <!-- Toggle track -->
+    <rect x="7" y="5.5" width="9" height="4.5" rx="2.25" fill="#4338CA"/>
+    <!-- Toggle knob (enabled) -->
+    <circle cx="13.75" cy="7.75" r="1.8" fill="#10B981"/>
+  </g>
+
+  <!-- Text: GO Feature Flag -->
+  <text x="40" y="26" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#1F2937">
+    <tspan fill="#6366F1">GO</tspan> Feature Flag
+  </text>
+</svg>

@@ -18,7 +18,6 @@ import { useAppStore } from '@/lib/store';
 import goffClient from '@/lib/api';
 import { localFlagAPI } from '@/lib/local-api';
 import { formatRelativeTime } from '@/lib/utils';
-import { useEffect } from 'react';
 import Link from 'next/link';
 
 interface FlagSet {
@@ -28,14 +27,9 @@ interface FlagSet {
 }
 
 export default function DashboardPage() {
-  const { isConnected, testConnection, config, isDevMode, selectedFlagSet } = useAppStore();
+  const { isConnected, config, isDevMode, selectedFlagSet } = useAppStore();
 
-  // Test connection on mount (only if not in dev mode or if proxy URL is configured)
-  useEffect(() => {
-    if (config.proxyUrl && !isDevMode) {
-      testConnection();
-    }
-  }, [config.proxyUrl, testConnection, isDevMode]);
+  // Connection is now handled by ConnectionProvider on app start
 
   const healthQuery = useQuery({
     queryKey: ['health'],
