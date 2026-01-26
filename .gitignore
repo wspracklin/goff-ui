@@ -60,7 +60,7 @@ web_modules/
 .node_repl_history
 
 # Output of 'npm pack'
-*.tgz
+#*.tgz
 
 # Yarn Integrity file
 .yarn-integrity
@@ -173,10 +173,3 @@ go.work.sum
 .vscode/
 .claude/
 
-goff-intellij-plugin/.gradle/8.5/executionHistory/executionHistory.bin
-goff-intellij-plugin/.gradle/8.5/executionHistory/executionHistory.lock
-goff-intellij-plugin/.gradle/8.5/fileHashes/fileHashes.bin
-goff-intellij-plugin/.gradle/8.5/fileHashes/fileHashes.lock
-goff-intellij-plugin/.gradle/8.5/fileHashes/resourceHashesCache.bin
-goff-intellij-plugin/.gradle/buildOutputCleanup/buildOutputCleanup.lock
-goff-intellij-plugin/.gradle/buildOutputCleanup/outputFiles.bin
