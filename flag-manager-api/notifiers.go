@@ -10,7 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"flag-manager-api/db"
+
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 )
 
 // Notifier represents a notification configuration
@@ -205,9 +208,98 @@ func (s *NotifiersStore) GetEnabled() []*Notifier {
 	return result
 }
 
+// ---- Conversion helpers between Notifier and db.DBNotifier ----
+
+// notifierConfigJSON represents the kind-specific config stored as JSON in the DB.
+type notifierConfigJSON struct {
+	WebhookURL  string            `json:"webhookUrl,omitempty"`
+	EndpointURL string            `json:"endpointUrl,omitempty"`
+	Secret      string            `json:"secret,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Meta        map[string]string `json:"meta,omitempty"`
+	LogFormat   string            `json:"logFormat,omitempty"`
+}
+
+func dbNotifierToNotifier(dbn db.DBNotifier) Notifier {
+	n := Notifier{
+		ID:          dbn.ID,
+		Name:        dbn.Name,
+		Kind:        dbn.Kind,
+		Description: dbn.Description,
+		Enabled:     dbn.Enabled,
+		CreatedAt:   dbn.CreatedAt,
+		UpdatedAt:   dbn.UpdatedAt,
+	}
+
+	if len(dbn.Config) > 0 && string(dbn.Config) != "null" {
+		var cfg notifierConfigJSON
+		if err := json.Unmarshal(dbn.Config, &cfg); err == nil {
+			n.WebhookURL = cfg.WebhookURL
+			n.EndpointURL = cfg.EndpointURL
+			n.Secret = cfg.Secret
+			n.Headers = cfg.Headers
+			n.Meta = cfg.Meta
+			n.LogFormat = cfg.LogFormat
+		}
+	}
+
+	return n
+}
+
+func notifierToDBNotifier(n Notifier) db.DBNotifier {
+	dbn := db.DBNotifier{
+		ID:          n.ID,
+		Name:        n.Name,
+		Kind:        n.Kind,
+		Description: n.Description,
+		Enabled:     n.Enabled,
+		CreatedAt:   n.CreatedAt,
+		UpdatedAt:   n.UpdatedAt,
+	}
+
+	cfg := notifierConfigJSON{
+		WebhookURL:  n.WebhookURL,
+		EndpointURL: n.EndpointURL,
+		Secret:      n.Secret,
+		Headers:     n.Headers,
+		Meta:        n.Meta,
+		LogFormat:   n.LogFormat,
+	}
+	configJSON, _ := json.Marshal(cfg)
+	dbn.Config = configJSON
+
+	return dbn
+}
+
+func maskNotifierSecrets(n *Notifier) *Notifier {
+	masked := *n
+	if masked.Secret != "" {
+		masked.Secret = "********"
+	}
+	return &masked
+}
+
 // HTTP Handlers
 
 func (fm *FlagManager) listNotifiersHandler(w http.ResponseWriter, r *http.Request) {
+	if fm.store != nil {
+		dbItems, err := fm.store.ListNotifiers(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		notifiers := make([]*Notifier, 0, len(dbItems))
+		for _, dbn := range dbItems {
+			n := dbNotifierToNotifier(dbn)
+			notifiers = append(notifiers, maskNotifierSecrets(&n))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"notifiers": notifiers,
+		})
+		return
+	}
+
 	notifiers := fm.notifiers.List()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -219,6 +311,22 @@ func (fm *FlagManager) listNotifiersHandler(w http.ResponseWriter, r *http.Reque
 func (fm *FlagManager) getNotifierHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		dbn, err := fm.store.GetNotifier(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Notifier not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		n := dbNotifierToNotifier(*dbn)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(maskNotifierSecrets(&n))
+		return
+	}
 
 	notifier := fm.notifiers.Get(id)
 	if notifier == nil {
@@ -265,6 +373,20 @@ func (fm *FlagManager) createNotifierHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if fm.store != nil {
+		dbn := notifierToDBNotifier(notifier)
+		created, err := fm.store.CreateNotifier(r.Context(), dbn)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		n := dbNotifierToNotifier(*created)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(maskNotifierSecrets(&n))
+		return
+	}
+
 	if err := fm.notifiers.Create(&notifier); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -285,6 +407,34 @@ func (fm *FlagManager) updateNotifierHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if fm.store != nil {
+		// Preserve secrets if masked
+		existing, err := fm.store.GetNotifier(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Notifier not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		existingN := dbNotifierToNotifier(*existing)
+		if updates.Secret == "********" || updates.Secret == "" {
+			updates.Secret = existingN.Secret
+		}
+
+		dbn := notifierToDBNotifier(updates)
+		updated, err := fm.store.UpdateNotifier(r.Context(), id, dbn)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		n := dbNotifierToNotifier(*updated)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(maskNotifierSecrets(&n))
+		return
+	}
+
 	if err := fm.notifiers.Update(id, &updates); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -298,6 +448,15 @@ func (fm *FlagManager) deleteNotifierHandler(w http.ResponseWriter, r *http.Requ
 	vars := mux.Vars(r)
 	id := vars["id"]
 
+	if fm.store != nil {
+		if err := fm.store.DeleteNotifier(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	if err := fm.notifiers.Delete(id); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -310,10 +469,26 @@ func (fm *FlagManager) testNotifierHandler(w http.ResponseWriter, r *http.Reques
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	notifier := fm.notifiers.GetRaw(id)
-	if notifier == nil {
-		http.Error(w, "Notifier not found", http.StatusNotFound)
-		return
+	var notifier *Notifier
+
+	if fm.store != nil {
+		dbn, err := fm.store.GetNotifier(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Notifier not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		n := dbNotifierToNotifier(*dbn)
+		notifier = &n
+	} else {
+		notifier = fm.notifiers.GetRaw(id)
+		if notifier == nil {
+			http.Error(w, "Notifier not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	var testErr error

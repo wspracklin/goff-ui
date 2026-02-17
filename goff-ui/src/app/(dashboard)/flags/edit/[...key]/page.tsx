@@ -2,15 +2,27 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, AlertCircle, Layers } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Layers, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogContent,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { FlagEditor } from '@/components/flag-editor';
 import { LocalFlagConfig } from '@/lib/local-api';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import goffClient from '@/lib/api';
+import Link from 'next/link';
 
 export default function EditFlagPage() {
   const params = useParams();
@@ -18,10 +30,27 @@ export default function EditFlagPage() {
   const queryClient = useQueryClient();
   const { config, selectedFlagSet } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [showChangeNoteDialog, setShowChangeNoteDialog] = useState(false);
+  const [changeNote, setChangeNote] = useState('');
+  const [pendingSave, setPendingSave] = useState<{ key: string; config: LocalFlagConfig } | null>(null);
 
   // Handle catch-all route - key comes as array of path segments
   const keySegments = params.key as string[];
   const flagKey = keySegments ? keySegments.join('/') : '';
+
+  // Fetch app config to check if approvals/change notes are required
+  const appConfigQuery = useQuery({
+    queryKey: ['app-config'],
+    queryFn: async () => {
+      const res = await fetch('/api/config');
+      if (!res.ok) return { requireApprovals: false, requireChangeNotes: false };
+      return res.json() as Promise<{ requireApprovals?: boolean; requireChangeNotes?: boolean }>;
+    },
+    staleTime: 60000,
+  });
+
+  const requireApprovals = appConfigQuery.data?.requireApprovals ?? false;
+  const requireChangeNotes = appConfigQuery.data?.requireChangeNotes ?? false;
 
   // Fetch the specific flag from the selected flagset (same as detail page)
   const flagQuery = useQuery({
@@ -45,6 +74,17 @@ export default function EditFlagPage() {
       return;
     }
 
+    // If change notes required or approvals, show dialog first
+    if (requireChangeNotes || requireApprovals) {
+      setPendingSave({ key, config: newFlagConfig });
+      setShowChangeNoteDialog(true);
+      return;
+    }
+
+    await executeSave(key, newFlagConfig, '');
+  };
+
+  const executeSave = async (key: string, newFlagConfig: LocalFlagConfig, note: string) => {
     setIsLoading(true);
     try {
       // Update the flag in the flagset
@@ -53,13 +93,33 @@ export default function EditFlagPage() {
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ config: newFlagConfig, newKey: key !== flagKey ? key : undefined }),
+          body: JSON.stringify({
+            config: newFlagConfig,
+            newKey: key !== flagKey ? key : undefined,
+            ...(note && { changeNote: note }),
+          }),
         }
       );
 
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to update flag');
+      }
+
+      const result = await response.json();
+
+      // Check if the update created a change request instead of direct-saving
+      if (result.requiresApproval && result.changeRequestId) {
+        toast.success(
+          <div>
+            Change request created.{' '}
+            <Link href="/change-requests" className="underline font-medium">
+              View change requests
+            </Link>
+          </div>
+        );
+        router.push('/change-requests');
+        return;
       }
 
       // Try to refresh flags on the relay proxy if admin key is configured
@@ -82,6 +142,9 @@ export default function EditFlagPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to update flag');
     } finally {
       setIsLoading(false);
+      setShowChangeNoteDialog(false);
+      setPendingSave(null);
+      setChangeNote('');
     }
   };
 
@@ -165,6 +228,68 @@ export default function EditFlagPage() {
         onCancel={() => router.push(`/flags/${flagKey}`)}
         isLoading={isLoading}
       />
+
+      {/* Change Note Dialog */}
+      <Dialog open={showChangeNoteDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowChangeNoteDialog(false);
+          setPendingSave(null);
+          setChangeNote('');
+        }
+      }}>
+        <DialogHeader>
+          <DialogTitle>
+            {requireApprovals ? 'Submit for Review' : 'Save Changes'}
+          </DialogTitle>
+          <DialogDescription>
+            {requireApprovals
+              ? 'This change will create a review request before being applied.'
+              : 'Add a note describing what changed and why.'}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogContent>
+          <div>
+            <Label htmlFor="changeNote">
+              Change Note {requireChangeNotes && <span className="text-red-500">(required)</span>}
+            </Label>
+            <Textarea
+              id="changeNote"
+              value={changeNote}
+              onChange={(e) => setChangeNote(e.target.value)}
+              placeholder="Describe what changed and why..."
+              rows={3}
+            />
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowChangeNoteDialog(false);
+              setPendingSave(null);
+              setChangeNote('');
+            }}
+            disabled={isLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (requireChangeNotes && !changeNote.trim()) {
+                toast.error('Change note is required');
+                return;
+              }
+              if (pendingSave) {
+                executeSave(pendingSave.key, pendingSave.config, changeNote.trim());
+              }
+            }}
+            disabled={isLoading}
+          >
+            {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {requireApprovals ? 'Submit for Review' : 'Save'}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 }

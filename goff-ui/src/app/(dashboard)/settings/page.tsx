@@ -351,6 +351,42 @@ export default function SettingsPage() {
         </CardContent>
       </Card>}
 
+      {/* Access Control Link */}
+      <Card className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
+        <Link href="/settings/access">
+          <CardContent className="flex items-center justify-between p-6">
+            <div className="flex items-center gap-4">
+              <Shield className="h-6 w-6 text-indigo-600" />
+              <div>
+                <h3 className="font-medium">Access Control</h3>
+                <p className="text-sm text-zinc-500">
+                  Manage roles, permissions, and user access
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-zinc-400" />
+          </CardContent>
+        </Link>
+      </Card>
+
+      {/* API Keys Link */}
+      <Card className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
+        <Link href="/settings/api-keys">
+          <CardContent className="flex items-center justify-between p-6">
+            <div className="flex items-center gap-4">
+              <Key className="h-6 w-6 text-amber-600" />
+              <div>
+                <h3 className="font-medium">API Keys</h3>
+                <p className="text-sm text-zinc-500">
+                  Manage API keys for automation, CI/CD, and programmatic access
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-zinc-400" />
+          </CardContent>
+        </Link>
+      </Card>
+
       {/* Git Integrations Link */}
       <Card className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
         <Link href="/settings/integrations">

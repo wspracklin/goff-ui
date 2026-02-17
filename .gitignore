@@ -168,6 +168,35 @@ go.work.sum
 # env file
 .env
 
+# Secrets, API keys, credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials.json
+secrets.json
+*-secret.yaml
+*-secret.yml
+service-account*.json
+token.json
+.htpasswd
+
+# Terraform state (may contain secrets)
+*.tfstate
+*.tfstate.*
+
+# Helm value overrides (often contain secrets)
+values-local.yaml
+values-secret.yaml
+values-override.yaml
+
+# Kubeconfig
+kubeconfig
+kubeconfig.yaml
+.kube/
+
 # Editor/IDE
 .idea/
 .vscode/

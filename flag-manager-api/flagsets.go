@@ -9,8 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"flag-manager-api/db"
+
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 	"gopkg.in/yaml.v3"
 )
 
@@ -316,9 +319,82 @@ func (s *FlagSetsStore) RemoveAPIKey(id string, apiKey string) error {
 	return fmt.Errorf("flag set not found")
 }
 
+// ---- Conversion helpers between FlagSet and db.DBFlagSet ----
+
+func dbFlagSetToFlagSet(dbfs db.DBFlagSet) FlagSet {
+	fs := FlagSet{
+		ID:          dbfs.ID,
+		Name:        dbfs.Name,
+		Description: dbfs.Description,
+		IsDefault:   dbfs.IsDefault,
+		APIKeys:     dbfs.APIKeys,
+		CreatedAt:   dbfs.CreatedAt,
+		UpdatedAt:   dbfs.UpdatedAt,
+	}
+	if len(dbfs.APIKeys) == 0 {
+		fs.APIKeys = []string{}
+	}
+	if len(dbfs.Retriever) > 0 && string(dbfs.Retriever) != "null" {
+		json.Unmarshal(dbfs.Retriever, &fs.Retriever)
+	}
+	if len(dbfs.Exporter) > 0 && string(dbfs.Exporter) != "null" {
+		var exp FlagSetExporter
+		if err := json.Unmarshal(dbfs.Exporter, &exp); err == nil {
+			fs.Exporter = &exp
+		}
+	}
+	if len(dbfs.Notifier) > 0 && string(dbfs.Notifier) != "null" {
+		var not FlagSetNotifier
+		if err := json.Unmarshal(dbfs.Notifier, &not); err == nil {
+			fs.Notifier = &not
+		}
+	}
+	return fs
+}
+
+func flagSetToDBFlagSet(fs FlagSet) db.DBFlagSet {
+	dbfs := db.DBFlagSet{
+		ID:          fs.ID,
+		Name:        fs.Name,
+		Description: fs.Description,
+		IsDefault:   fs.IsDefault,
+		APIKeys:     fs.APIKeys,
+		CreatedAt:   fs.CreatedAt,
+		UpdatedAt:   fs.UpdatedAt,
+	}
+	retrieverJSON, _ := json.Marshal(fs.Retriever)
+	dbfs.Retriever = retrieverJSON
+	if fs.Exporter != nil {
+		exporterJSON, _ := json.Marshal(fs.Exporter)
+		dbfs.Exporter = exporterJSON
+	}
+	if fs.Notifier != nil {
+		notifierJSON, _ := json.Marshal(fs.Notifier)
+		dbfs.Notifier = notifierJSON
+	}
+	return dbfs
+}
+
 // HTTP Handlers
 
 func (fm *FlagManager) listFlagSetsHandler(w http.ResponseWriter, r *http.Request) {
+	if fm.store != nil {
+		dbFlagSets, err := fm.store.ListFlagSets(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		flagSets := make([]FlagSet, 0, len(dbFlagSets))
+		for _, dbfs := range dbFlagSets {
+			flagSets = append(flagSets, dbFlagSetToFlagSet(dbfs))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"flagSets": flagSets,
+		})
+		return
+	}
+
 	flagSets := fm.flagSets.List()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -329,6 +405,22 @@ func (fm *FlagManager) listFlagSetsHandler(w http.ResponseWriter, r *http.Reques
 func (fm *FlagManager) getFlagSetHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		dbfs, err := fm.store.GetFlagSet(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag set not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		fs := dbFlagSetToFlagSet(*dbfs)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(fs)
+		return
+	}
 
 	flagSet := fm.flagSets.Get(id)
 	if flagSet == nil {
@@ -361,6 +453,20 @@ func (fm *FlagManager) createFlagSetHandler(w http.ResponseWriter, r *http.Reque
 	// Default retriever to file if not specified
 	if flagSet.Retriever.Kind == "" {
 		flagSet.Retriever.Kind = "file"
+	}
+
+	if fm.store != nil {
+		dbfs := flagSetToDBFlagSet(flagSet)
+		created, err := fm.store.CreateFlagSet(r.Context(), dbfs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		fs := dbFlagSetToFlagSet(*created)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(fs)
+		return
 	}
 
 	created, err := fm.flagSets.Create(flagSet)
@@ -396,6 +502,23 @@ func (fm *FlagManager) updateFlagSetHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if fm.store != nil {
+		dbfs := flagSetToDBFlagSet(updates)
+		updated, err := fm.store.UpdateFlagSet(r.Context(), id, dbfs)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag set not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusConflict)
+			}
+			return
+		}
+		fs := dbFlagSetToFlagSet(*updated)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(fs)
+		return
+	}
+
 	updated, err := fm.flagSets.Update(id, updates)
 	if err != nil {
 		if err.Error() == "flag set not found" {
@@ -414,6 +537,16 @@ func (fm *FlagManager) deleteFlagSetHandler(w http.ResponseWriter, r *http.Reque
 	vars := mux.Vars(r)
 	id := vars["id"]
 
+	if fm.store != nil {
+		if err := fm.store.DeleteFlagSet(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+		return
+	}
+
 	if err := fm.flagSets.Delete(id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -426,6 +559,17 @@ func (fm *FlagManager) deleteFlagSetHandler(w http.ResponseWriter, r *http.Reque
 func (fm *FlagManager) generateFlagSetAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		newKey := uuid.New().String()
+		if err := fm.store.GenerateFlagSetAPIKey(r.Context(), id, newKey); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"apiKey": newKey})
+		return
+	}
 
 	newKey, err := fm.flagSets.GenerateAPIKey(id)
 	if err != nil {
@@ -449,6 +593,20 @@ func (fm *FlagManager) removeFlagSetAPIKeyHandler(w http.ResponseWriter, r *http
 		return
 	}
 
+	if fm.store != nil {
+		if err := fm.store.RemoveFlagSetAPIKey(r.Context(), id, body.APIKey); err != nil {
+			if err.Error() == "cannot remove last API key" {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			} else {
+				http.Error(w, err.Error(), http.StatusNotFound)
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+		return
+	}
+
 	if err := fm.flagSets.RemoveAPIKey(id, body.APIKey); err != nil {
 		if err.Error() == "flag set not found" {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -464,7 +622,21 @@ func (fm *FlagManager) removeFlagSetAPIKeyHandler(w http.ResponseWriter, r *http
 
 // GenerateRelayProxyConfig generates the relay proxy configuration for all flag sets
 func (fm *FlagManager) generateRelayProxyConfigHandler(w http.ResponseWriter, r *http.Request) {
-	flagSets := fm.flagSets.List()
+	var flagSets []FlagSet
+
+	if fm.store != nil {
+		dbFlagSets, err := fm.store.ListFlagSets(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		flagSets = make([]FlagSet, 0, len(dbFlagSets))
+		for _, dbfs := range dbFlagSets {
+			flagSets = append(flagSets, dbFlagSetToFlagSet(dbfs))
+		}
+	} else {
+		flagSets = fm.flagSets.List()
+	}
 
 	if len(flagSets) == 0 {
 		http.Error(w, "No flag sets configured", http.StatusNotFound)
@@ -573,8 +745,8 @@ func (fm *FlagManager) getFlagSetFilePath(flagSetID string) string {
 
 // readFlagSetFlags reads flags from a flagset's file
 func (fm *FlagManager) readFlagSetFlags(flagSetID string) (map[string]interface{}, error) {
-	fm.mu.RLock()
-	defer fm.mu.RUnlock()
+	fileMu.RLock()
+	defer fileMu.RUnlock()
 
 	filePath := fm.getFlagSetFilePath(flagSetID)
 	data, err := os.ReadFile(filePath)
@@ -599,8 +771,8 @@ func (fm *FlagManager) readFlagSetFlags(flagSetID string) (map[string]interface{
 
 // writeFlagSetFlags writes flags to a flagset's file
 func (fm *FlagManager) writeFlagSetFlags(flagSetID string, flags map[string]interface{}) error {
-	fm.mu.Lock()
-	defer fm.mu.Unlock()
+	fileMu.Lock()
+	defer fileMu.Unlock()
 
 	filePath := fm.getFlagSetFilePath(flagSetID)
 	data, err := yaml.Marshal(flags)
@@ -615,6 +787,44 @@ func (fm *FlagManager) writeFlagSetFlags(flagSetID string, flags map[string]inte
 func (fm *FlagManager) listFlagSetFlagsHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		// Verify flagset exists
+		dbfs, err := fm.store.GetFlagSet(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag set not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		flags, err := fm.store.ListFlagSetFlags(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Convert json.RawMessage values to interface{} for consistent response
+		flagsOut := make(map[string]interface{}, len(flags))
+		for k, v := range flags {
+			var parsed interface{}
+			if err := json.Unmarshal(v, &parsed); err == nil {
+				flagsOut[k] = parsed
+			} else {
+				flagsOut[k] = v
+			}
+		}
+
+		fs := dbFlagSetToFlagSet(*dbfs)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"flags":   flagsOut,
+			"flagSet": fs,
+		})
+		return
+	}
 
 	// Verify flagset exists
 	flagSet := fm.flagSets.Get(id)
@@ -641,6 +851,39 @@ func (fm *FlagManager) getFlagSetFlagHandler(w http.ResponseWriter, r *http.Requ
 	vars := mux.Vars(r)
 	id := vars["id"]
 	flagKey := vars["flagKey"]
+
+	if fm.store != nil {
+		// Verify flagset exists
+		_, err := fm.store.GetFlagSet(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag set not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		config, err := fm.store.GetFlagSetFlag(r.Context(), id, flagKey)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		var parsed interface{}
+		json.Unmarshal(config, &parsed)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"key":    flagKey,
+			"config": parsed,
+		})
+		return
+	}
 
 	// Verify flagset exists
 	flagSet := fm.flagSets.Get(id)
@@ -673,6 +916,57 @@ func (fm *FlagManager) createFlagSetFlagHandler(w http.ResponseWriter, r *http.R
 	vars := mux.Vars(r)
 	id := vars["id"]
 	flagKey := vars["flagKey"]
+
+	if fm.store != nil {
+		// Verify flagset exists
+		_, err := fm.store.GetFlagSet(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag set not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		var flagConfig interface{}
+		if err := json.NewDecoder(r.Body).Decode(&flagConfig); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Check if flag already exists
+		exists, err := fm.store.FlagSetFlagExists(r.Context(), id, flagKey)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if exists {
+			http.Error(w, "Flag already exists", http.StatusConflict)
+			return
+		}
+
+		configJSON, err := json.Marshal(flagConfig)
+		if err != nil {
+			http.Error(w, "Failed to marshal flag config", http.StatusInternalServerError)
+			return
+		}
+
+		if err := fm.store.CreateFlagSetFlag(r.Context(), id, flagKey, configJSON); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		go fm.refreshRelayProxy()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"key":    flagKey,
+			"config": flagConfig,
+		})
+		return
+	}
 
 	// Verify flagset exists
 	flagSet := fm.flagSets.Get(id)
@@ -721,6 +1015,70 @@ func (fm *FlagManager) updateFlagSetFlagHandler(w http.ResponseWriter, r *http.R
 	vars := mux.Vars(r)
 	id := vars["id"]
 	flagKey := vars["flagKey"]
+
+	if fm.store != nil {
+		// Verify flagset exists
+		_, err := fm.store.GetFlagSet(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag set not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		var requestBody struct {
+			Config interface{} `json:"config"`
+			NewKey string      `json:"newKey,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		configJSON, err := json.Marshal(requestBody.Config)
+		if err != nil {
+			http.Error(w, "Failed to marshal flag config", http.StatusInternalServerError)
+			return
+		}
+
+		// Check for rename conflict
+		if requestBody.NewKey != "" && requestBody.NewKey != flagKey {
+			exists, err := fm.store.FlagSetFlagExists(r.Context(), id, requestBody.NewKey)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if exists {
+				http.Error(w, "Flag with new key already exists", http.StatusConflict)
+				return
+			}
+		}
+
+		if err := fm.store.UpdateFlagSetFlag(r.Context(), id, flagKey, configJSON, requestBody.NewKey); err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		effectiveKey := flagKey
+		if requestBody.NewKey != "" && requestBody.NewKey != flagKey {
+			effectiveKey = requestBody.NewKey
+		}
+
+		go fm.refreshRelayProxy()
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"key":    effectiveKey,
+			"config": requestBody.Config,
+		})
+		return
+	}
 
 	// Verify flagset exists
 	flagSet := fm.flagSets.Get(id)
@@ -782,6 +1140,33 @@ func (fm *FlagManager) deleteFlagSetFlagHandler(w http.ResponseWriter, r *http.R
 	vars := mux.Vars(r)
 	id := vars["id"]
 	flagKey := vars["flagKey"]
+
+	if fm.store != nil {
+		// Verify flagset exists
+		_, err := fm.store.GetFlagSet(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag set not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		if err := fm.store.DeleteFlagSetFlag(r.Context(), id, flagKey); err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Flag not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		go fm.refreshRelayProxy()
+
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 
 	// Verify flagset exists
 	flagSet := fm.flagSets.Get(id)

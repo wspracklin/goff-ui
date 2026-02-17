@@ -1,7 +1,25 @@
 version: '3.8'
 
 services:
-  # Flag Manager API - simplified for non-K8s deployment
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=goff
+      - POSTGRES_USER=goff
+      - POSTGRES_PASSWORD=goff
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goff -d goff"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Flag Manager API
   flag-manager-api:
     build: ./flag-manager-api
     ports:
@@ -12,6 +30,10 @@ services:
       - PORT=8095
       - FLAGS_DIR=/data/flags
       - RELAY_PROXY_URL=http://relay-proxy:1031
+      - DATABASE_URL=postgres://goff:goff@postgres:5432/goff?sslmode=disable
+      - AUTH_ENABLED=false
+      # - JWT_ISSUER_URL=http://keycloak:8080/realms/goff
+      # - ALLOWED_ORIGINS=http://localhost:4000
       # Git Provider Configuration (uncomment one provider)
       # =================================================
       # Azure DevOps:
@@ -30,6 +52,9 @@ services:
       # - GITLAB_TOKEN=${GITLAB_TOKEN}
       # - GIT_BASE_BRANCH=main
       # - GIT_FLAGS_PATH=/flags.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8095/health"]
@@ -85,4 +110,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  pgdata:
   flags-data:

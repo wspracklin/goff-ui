@@ -21,6 +21,8 @@ import {
   ListOrdered,
   Clock,
   Key,
+  Copy,
+  Loader2,
 } from 'lucide-react';
 import {
   Card,
@@ -31,6 +33,8 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import {
   Dialog,
@@ -61,6 +65,9 @@ export default function FlagDetailPage() {
   const { isConnected, selectedProject, isDevMode, config, selectedFlagSet } = useAppStore();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [cloneKey, setCloneKey] = useState('');
+  const [isCloning, setIsCloning] = useState(false);
 
   // Handle catch-all route - key comes as array of path segments
   const keySegments = params.key as string[];
@@ -215,6 +222,36 @@ export default function FlagDetailPage() {
     }
   };
 
+  const handleClone = async () => {
+    if (!selectedFlagSet || !cloneKey.trim()) return;
+    setIsCloning(true);
+    try {
+      const flagSetName = flagSet?.name;
+      if (!flagSetName) throw new Error('No flag set selected');
+      const res = await fetch(
+        `/api/projects/${encodeURIComponent(flagSetName)}/flags/${encodeURIComponent(flagKey)}/clone`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newKey: cloneKey.trim(), targetProject: flagSetName }),
+        }
+      );
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to clone flag');
+      }
+      toast.success(`Flag cloned as "${cloneKey.trim()}"`);
+      setShowCloneDialog(false);
+      setCloneKey('');
+      queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
+      router.push(`/flags/${cloneKey.trim()}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Clone failed');
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
   const flag = flagQuery.data;
   const flagSet = flagSetQuery.data;
   const isLoading = flagQuery.isLoading;
@@ -341,6 +378,13 @@ export default function FlagDetailPage() {
           </Link>
           <Button
             variant="outline"
+            onClick={() => { setCloneKey(`${flagKey}-copy`); setShowCloneDialog(true); }}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Clone
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => setShowDeleteDialog(true)}
             className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
           >
@@ -381,6 +425,41 @@ export default function FlagDetailPage() {
             {isDeleting
               ? isDevMode ? 'Deleting...' : 'Creating PR...'
               : isDevMode ? 'Delete Flag' : 'Create Deletion PR'}
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* Clone Dialog */}
+      <Dialog open={showCloneDialog} onOpenChange={setShowCloneDialog}>
+        <DialogHeader>
+          <DialogTitle>Clone Flag</DialogTitle>
+          <DialogDescription>
+            Create a copy of &quot;{flagKey}&quot; with a new key
+          </DialogDescription>
+        </DialogHeader>
+        <DialogContent>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="cloneKey">New Flag Key *</Label>
+              <Input
+                id="cloneKey"
+                value={cloneKey}
+                onChange={(e) => setCloneKey(e.target.value)}
+                placeholder="my-new-flag-key"
+              />
+              <p className="mt-1 text-xs text-zinc-500">
+                The new flag will have the same configuration as the original
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowCloneDialog(false)} disabled={isCloning}>
+            Cancel
+          </Button>
+          <Button onClick={handleClone} disabled={isCloning || !cloneKey.trim()}>
+            {isCloning && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Clone Flag
           </Button>
         </DialogFooter>
       </Dialog>

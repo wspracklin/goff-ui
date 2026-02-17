@@ -9,7 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"flag-manager-api/db"
+
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 )
 
 // Retriever represents a retriever configuration for fetching flag configurations
@@ -291,9 +294,224 @@ func (s *RetrieversStore) GetEnabled() []*Retriever {
 	return result
 }
 
+// ---- Conversion helpers between Retriever and db.DBRetriever ----
+
+// retrieverConfigJSON represents the kind-specific config stored as JSON in the DB.
+type retrieverConfigJSON struct {
+	PollingInterval int    `json:"pollingInterval,omitempty"`
+	Timeout         int    `json:"timeout,omitempty"`
+	FileFormat      string `json:"fileFormat,omitempty"`
+
+	Path    string            `json:"path,omitempty"`
+	URL     string            `json:"url,omitempty"`
+	Method  string            `json:"method,omitempty"`
+	Body    string            `json:"body,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+
+	S3Bucket  string `json:"s3Bucket,omitempty"`
+	S3Item    string `json:"s3Item,omitempty"`
+	GCSBucket string `json:"gcsBucket,omitempty"`
+	GCSObject string `json:"gcsObject,omitempty"`
+
+	AzureContainer   string `json:"azureContainer,omitempty"`
+	AzureAccountName string `json:"azureAccountName,omitempty"`
+	AzureAccountKey  string `json:"azureAccountKey,omitempty"`
+	AzureObject      string `json:"azureObject,omitempty"`
+
+	GitHubRepositorySlug string `json:"githubRepositorySlug,omitempty"`
+	GitHubPath           string `json:"githubPath,omitempty"`
+	GitHubBranch         string `json:"githubBranch,omitempty"`
+	GitHubToken          string `json:"githubToken,omitempty"`
+
+	GitLabRepositorySlug string `json:"gitlabRepositorySlug,omitempty"`
+	GitLabPath           string `json:"gitlabPath,omitempty"`
+	GitLabBranch         string `json:"gitlabBranch,omitempty"`
+	GitLabToken          string `json:"gitlabToken,omitempty"`
+	GitLabBaseURL        string `json:"gitlabBaseUrl,omitempty"`
+
+	BitbucketRepositorySlug string `json:"bitbucketRepositorySlug,omitempty"`
+	BitbucketPath           string `json:"bitbucketPath,omitempty"`
+	BitbucketBranch         string `json:"bitbucketBranch,omitempty"`
+	BitbucketToken          string `json:"bitbucketToken,omitempty"`
+	BitbucketBaseURL        string `json:"bitbucketBaseUrl,omitempty"`
+
+	MongoDBURI        string `json:"mongodbUri,omitempty"`
+	MongoDBDatabase   string `json:"mongodbDatabase,omitempty"`
+	MongoDBCollection string `json:"mongodbCollection,omitempty"`
+
+	RedisAddr     string `json:"redisAddr,omitempty"`
+	RedisPassword string `json:"redisPassword,omitempty"`
+	RedisDB       int    `json:"redisDb,omitempty"`
+	RedisPrefix   string `json:"redisPrefix,omitempty"`
+
+	ConfigMapNamespace string `json:"configmapNamespace,omitempty"`
+	ConfigMapName      string `json:"configmapName,omitempty"`
+	ConfigMapKey       string `json:"configmapKey,omitempty"`
+}
+
+func dbRetrieverToRetriever(dbr db.DBRetriever) Retriever {
+	r := Retriever{
+		ID:          dbr.ID,
+		Name:        dbr.Name,
+		Kind:        dbr.Kind,
+		Description: dbr.Description,
+		Enabled:     dbr.Enabled,
+		CreatedAt:   dbr.CreatedAt,
+		UpdatedAt:   dbr.UpdatedAt,
+	}
+
+	if len(dbr.Config) > 0 && string(dbr.Config) != "null" {
+		var cfg retrieverConfigJSON
+		if err := json.Unmarshal(dbr.Config, &cfg); err == nil {
+			r.PollingInterval = cfg.PollingInterval
+			r.Timeout = cfg.Timeout
+			r.FileFormat = cfg.FileFormat
+			r.Path = cfg.Path
+			r.URL = cfg.URL
+			r.Method = cfg.Method
+			r.Body = cfg.Body
+			r.Headers = cfg.Headers
+			r.S3Bucket = cfg.S3Bucket
+			r.S3Item = cfg.S3Item
+			r.GCSBucket = cfg.GCSBucket
+			r.GCSObject = cfg.GCSObject
+			r.AzureContainer = cfg.AzureContainer
+			r.AzureAccountName = cfg.AzureAccountName
+			r.AzureAccountKey = cfg.AzureAccountKey
+			r.AzureObject = cfg.AzureObject
+			r.GitHubRepositorySlug = cfg.GitHubRepositorySlug
+			r.GitHubPath = cfg.GitHubPath
+			r.GitHubBranch = cfg.GitHubBranch
+			r.GitHubToken = cfg.GitHubToken
+			r.GitLabRepositorySlug = cfg.GitLabRepositorySlug
+			r.GitLabPath = cfg.GitLabPath
+			r.GitLabBranch = cfg.GitLabBranch
+			r.GitLabToken = cfg.GitLabToken
+			r.GitLabBaseURL = cfg.GitLabBaseURL
+			r.BitbucketRepositorySlug = cfg.BitbucketRepositorySlug
+			r.BitbucketPath = cfg.BitbucketPath
+			r.BitbucketBranch = cfg.BitbucketBranch
+			r.BitbucketToken = cfg.BitbucketToken
+			r.BitbucketBaseURL = cfg.BitbucketBaseURL
+			r.MongoDBURI = cfg.MongoDBURI
+			r.MongoDBDatabase = cfg.MongoDBDatabase
+			r.MongoDBCollection = cfg.MongoDBCollection
+			r.RedisAddr = cfg.RedisAddr
+			r.RedisPassword = cfg.RedisPassword
+			r.RedisDB = cfg.RedisDB
+			r.RedisPrefix = cfg.RedisPrefix
+			r.ConfigMapNamespace = cfg.ConfigMapNamespace
+			r.ConfigMapName = cfg.ConfigMapName
+			r.ConfigMapKey = cfg.ConfigMapKey
+		}
+	}
+
+	return r
+}
+
+func retrieverToDBRetriever(r Retriever) db.DBRetriever {
+	dbr := db.DBRetriever{
+		ID:          r.ID,
+		Name:        r.Name,
+		Kind:        r.Kind,
+		Description: r.Description,
+		Enabled:     r.Enabled,
+		CreatedAt:   r.CreatedAt,
+		UpdatedAt:   r.UpdatedAt,
+	}
+
+	cfg := retrieverConfigJSON{
+		PollingInterval:         r.PollingInterval,
+		Timeout:                 r.Timeout,
+		FileFormat:              r.FileFormat,
+		Path:                    r.Path,
+		URL:                     r.URL,
+		Method:                  r.Method,
+		Body:                    r.Body,
+		Headers:                 r.Headers,
+		S3Bucket:                r.S3Bucket,
+		S3Item:                  r.S3Item,
+		GCSBucket:               r.GCSBucket,
+		GCSObject:               r.GCSObject,
+		AzureContainer:          r.AzureContainer,
+		AzureAccountName:        r.AzureAccountName,
+		AzureAccountKey:         r.AzureAccountKey,
+		AzureObject:             r.AzureObject,
+		GitHubRepositorySlug:    r.GitHubRepositorySlug,
+		GitHubPath:              r.GitHubPath,
+		GitHubBranch:            r.GitHubBranch,
+		GitHubToken:             r.GitHubToken,
+		GitLabRepositorySlug:    r.GitLabRepositorySlug,
+		GitLabPath:              r.GitLabPath,
+		GitLabBranch:            r.GitLabBranch,
+		GitLabToken:             r.GitLabToken,
+		GitLabBaseURL:           r.GitLabBaseURL,
+		BitbucketRepositorySlug: r.BitbucketRepositorySlug,
+		BitbucketPath:           r.BitbucketPath,
+		BitbucketBranch:         r.BitbucketBranch,
+		BitbucketToken:          r.BitbucketToken,
+		BitbucketBaseURL:        r.BitbucketBaseURL,
+		MongoDBURI:              r.MongoDBURI,
+		MongoDBDatabase:         r.MongoDBDatabase,
+		MongoDBCollection:       r.MongoDBCollection,
+		RedisAddr:               r.RedisAddr,
+		RedisPassword:           r.RedisPassword,
+		RedisDB:                 r.RedisDB,
+		RedisPrefix:             r.RedisPrefix,
+		ConfigMapNamespace:      r.ConfigMapNamespace,
+		ConfigMapName:           r.ConfigMapName,
+		ConfigMapKey:            r.ConfigMapKey,
+	}
+	configJSON, _ := json.Marshal(cfg)
+	dbr.Config = configJSON
+
+	return dbr
+}
+
+func maskRetrieverSecrets(r *Retriever) *Retriever {
+	masked := *r
+	if masked.AzureAccountKey != "" {
+		masked.AzureAccountKey = "********"
+	}
+	if masked.GitHubToken != "" {
+		masked.GitHubToken = "********"
+	}
+	if masked.GitLabToken != "" {
+		masked.GitLabToken = "********"
+	}
+	if masked.BitbucketToken != "" {
+		masked.BitbucketToken = "********"
+	}
+	if masked.RedisPassword != "" {
+		masked.RedisPassword = "********"
+	}
+	if masked.MongoDBURI != "" && containsCredentials(masked.MongoDBURI) {
+		masked.MongoDBURI = "mongodb://****:****@..."
+	}
+	return &masked
+}
+
 // HTTP Handlers
 
 func (fm *FlagManager) listRetrieversHandler(w http.ResponseWriter, r *http.Request) {
+	if fm.store != nil {
+		dbItems, err := fm.store.ListRetrievers(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		retrievers := make([]*Retriever, 0, len(dbItems))
+		for _, dbr := range dbItems {
+			ret := dbRetrieverToRetriever(dbr)
+			retrievers = append(retrievers, maskRetrieverSecrets(&ret))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"retrievers": retrievers,
+		})
+		return
+	}
+
 	retrievers := fm.retrievers.List()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -305,6 +523,22 @@ func (fm *FlagManager) listRetrieversHandler(w http.ResponseWriter, r *http.Requ
 func (fm *FlagManager) getRetrieverHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		dbr, err := fm.store.GetRetriever(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Retriever not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		ret := dbRetrieverToRetriever(*dbr)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(maskRetrieverSecrets(&ret))
+		return
+	}
 
 	retriever := fm.retrievers.Get(id)
 	if retriever == nil {
@@ -357,6 +591,20 @@ func (fm *FlagManager) createRetrieverHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if fm.store != nil {
+		dbr := retrieverToDBRetriever(retriever)
+		created, err := fm.store.CreateRetriever(r.Context(), dbr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		ret := dbRetrieverToRetriever(*created)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(maskRetrieverSecrets(&ret))
+		return
+	}
+
 	if err := fm.retrievers.Create(&retriever); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -377,6 +625,49 @@ func (fm *FlagManager) updateRetrieverHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if fm.store != nil {
+		// Preserve secrets if masked
+		existing, err := fm.store.GetRetriever(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Retriever not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		existingR := dbRetrieverToRetriever(*existing)
+		if updates.AzureAccountKey == "********" || updates.AzureAccountKey == "" {
+			updates.AzureAccountKey = existingR.AzureAccountKey
+		}
+		if updates.GitHubToken == "********" || updates.GitHubToken == "" {
+			updates.GitHubToken = existingR.GitHubToken
+		}
+		if updates.GitLabToken == "********" || updates.GitLabToken == "" {
+			updates.GitLabToken = existingR.GitLabToken
+		}
+		if updates.BitbucketToken == "********" || updates.BitbucketToken == "" {
+			updates.BitbucketToken = existingR.BitbucketToken
+		}
+		if updates.RedisPassword == "********" || updates.RedisPassword == "" {
+			updates.RedisPassword = existingR.RedisPassword
+		}
+		if updates.MongoDBURI == "mongodb://****:****@..." || updates.MongoDBURI == "" {
+			updates.MongoDBURI = existingR.MongoDBURI
+		}
+
+		dbr := retrieverToDBRetriever(updates)
+		updated, err := fm.store.UpdateRetriever(r.Context(), id, dbr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		ret := dbRetrieverToRetriever(*updated)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(maskRetrieverSecrets(&ret))
+		return
+	}
+
 	if err := fm.retrievers.Update(id, &updates); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -389,6 +680,15 @@ func (fm *FlagManager) updateRetrieverHandler(w http.ResponseWriter, r *http.Req
 func (fm *FlagManager) deleteRetrieverHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		if err := fm.store.DeleteRetriever(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 
 	if err := fm.retrievers.Delete(id); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)

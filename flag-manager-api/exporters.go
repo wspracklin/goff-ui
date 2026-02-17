@@ -9,7 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"flag-manager-api/db"
+
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 )
 
 // Exporter represents an exporter configuration
@@ -246,9 +249,185 @@ func (s *ExportersStore) GetEnabled() []*Exporter {
 	return result
 }
 
+// ---- Conversion helpers between Exporter and db.DBExporter ----
+
+// exporterConfigJSON represents the kind-specific config stored as JSON in the DB.
+type exporterConfigJSON struct {
+	// Common bulk
+	FlushInterval    int    `json:"flushInterval,omitempty"`
+	MaxEventInMemory int    `json:"maxEventInMemory,omitempty"`
+	Format           string `json:"format,omitempty"`
+	Filename         string `json:"filename,omitempty"`
+	CsvTemplate      string `json:"csvTemplate,omitempty"`
+	ParquetCodec     string `json:"parquetCompressionCodec,omitempty"`
+
+	// File
+	OutputDir string `json:"outputDir,omitempty"`
+
+	// Webhook
+	EndpointURL string            `json:"endpointUrl,omitempty"`
+	Secret      string            `json:"secret,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Meta        map[string]string `json:"meta,omitempty"`
+
+	// Log
+	LogFormat string `json:"logFormat,omitempty"`
+
+	// S3
+	S3Bucket string `json:"s3Bucket,omitempty"`
+	S3Path   string `json:"s3Path,omitempty"`
+
+	// GCS
+	GCSBucket string `json:"gcsBucket,omitempty"`
+	GCSPath   string `json:"gcsPath,omitempty"`
+
+	// Azure
+	AzureContainer   string `json:"azureContainer,omitempty"`
+	AzureAccountName string `json:"azureAccountName,omitempty"`
+	AzureAccountKey  string `json:"azureAccountKey,omitempty"`
+	AzurePath        string `json:"azurePath,omitempty"`
+
+	// Kafka
+	KafkaTopic     string   `json:"kafkaTopic,omitempty"`
+	KafkaAddresses []string `json:"kafkaAddresses,omitempty"`
+
+	// SQS
+	SQSQueueURL string `json:"sqsQueueUrl,omitempty"`
+
+	// Kinesis
+	KinesisStreamArn  string `json:"kinesisStreamArn,omitempty"`
+	KinesisStreamName string `json:"kinesisStreamName,omitempty"`
+
+	// PubSub
+	PubSubProjectID string `json:"pubsubProjectId,omitempty"`
+	PubSubTopic     string `json:"pubsubTopic,omitempty"`
+}
+
+func dbExporterToExporter(dbe db.DBExporter) Exporter {
+	e := Exporter{
+		ID:          dbe.ID,
+		Name:        dbe.Name,
+		Kind:        dbe.Kind,
+		Description: dbe.Description,
+		Enabled:     dbe.Enabled,
+		CreatedAt:   dbe.CreatedAt,
+		UpdatedAt:   dbe.UpdatedAt,
+	}
+
+	if len(dbe.Config) > 0 && string(dbe.Config) != "null" {
+		var cfg exporterConfigJSON
+		if err := json.Unmarshal(dbe.Config, &cfg); err == nil {
+			e.FlushInterval = cfg.FlushInterval
+			e.MaxEventInMemory = cfg.MaxEventInMemory
+			e.Format = cfg.Format
+			e.Filename = cfg.Filename
+			e.CsvTemplate = cfg.CsvTemplate
+			e.ParquetCodec = cfg.ParquetCodec
+			e.OutputDir = cfg.OutputDir
+			e.EndpointURL = cfg.EndpointURL
+			e.Secret = cfg.Secret
+			e.Headers = cfg.Headers
+			e.Meta = cfg.Meta
+			e.LogFormat = cfg.LogFormat
+			e.S3Bucket = cfg.S3Bucket
+			e.S3Path = cfg.S3Path
+			e.GCSBucket = cfg.GCSBucket
+			e.GCSPath = cfg.GCSPath
+			e.AzureContainer = cfg.AzureContainer
+			e.AzureAccountName = cfg.AzureAccountName
+			e.AzureAccountKey = cfg.AzureAccountKey
+			e.AzurePath = cfg.AzurePath
+			e.KafkaTopic = cfg.KafkaTopic
+			e.KafkaAddresses = cfg.KafkaAddresses
+			e.SQSQueueURL = cfg.SQSQueueURL
+			e.KinesisStreamArn = cfg.KinesisStreamArn
+			e.KinesisStreamName = cfg.KinesisStreamName
+			e.PubSubProjectID = cfg.PubSubProjectID
+			e.PubSubTopic = cfg.PubSubTopic
+		}
+	}
+
+	return e
+}
+
+func exporterToDBExporter(e Exporter) db.DBExporter {
+	dbe := db.DBExporter{
+		ID:          e.ID,
+		Name:        e.Name,
+		Kind:        e.Kind,
+		Description: e.Description,
+		Enabled:     e.Enabled,
+		CreatedAt:   e.CreatedAt,
+		UpdatedAt:   e.UpdatedAt,
+	}
+
+	cfg := exporterConfigJSON{
+		FlushInterval:    e.FlushInterval,
+		MaxEventInMemory: e.MaxEventInMemory,
+		Format:           e.Format,
+		Filename:         e.Filename,
+		CsvTemplate:      e.CsvTemplate,
+		ParquetCodec:     e.ParquetCodec,
+		OutputDir:        e.OutputDir,
+		EndpointURL:      e.EndpointURL,
+		Secret:           e.Secret,
+		Headers:          e.Headers,
+		Meta:             e.Meta,
+		LogFormat:        e.LogFormat,
+		S3Bucket:         e.S3Bucket,
+		S3Path:           e.S3Path,
+		GCSBucket:        e.GCSBucket,
+		GCSPath:          e.GCSPath,
+		AzureContainer:   e.AzureContainer,
+		AzureAccountName: e.AzureAccountName,
+		AzureAccountKey:  e.AzureAccountKey,
+		AzurePath:        e.AzurePath,
+		KafkaTopic:       e.KafkaTopic,
+		KafkaAddresses:   e.KafkaAddresses,
+		SQSQueueURL:      e.SQSQueueURL,
+		KinesisStreamArn:  e.KinesisStreamArn,
+		KinesisStreamName: e.KinesisStreamName,
+		PubSubProjectID:  e.PubSubProjectID,
+		PubSubTopic:      e.PubSubTopic,
+	}
+	configJSON, _ := json.Marshal(cfg)
+	dbe.Config = configJSON
+
+	return dbe
+}
+
+func maskExporterSecrets(e *Exporter) *Exporter {
+	masked := *e
+	if masked.Secret != "" {
+		masked.Secret = "********"
+	}
+	if masked.AzureAccountKey != "" {
+		masked.AzureAccountKey = "********"
+	}
+	return &masked
+}
+
 // HTTP Handlers
 
 func (fm *FlagManager) listExportersHandler(w http.ResponseWriter, r *http.Request) {
+	if fm.store != nil {
+		dbItems, err := fm.store.ListExporters(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		exporters := make([]*Exporter, 0, len(dbItems))
+		for _, dbe := range dbItems {
+			e := dbExporterToExporter(dbe)
+			exporters = append(exporters, maskExporterSecrets(&e))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"exporters": exporters,
+		})
+		return
+	}
+
 	exporters := fm.exporters.List()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -260,6 +439,22 @@ func (fm *FlagManager) listExportersHandler(w http.ResponseWriter, r *http.Reque
 func (fm *FlagManager) getExporterHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		dbe, err := fm.store.GetExporter(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Exporter not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		e := dbExporterToExporter(*dbe)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(maskExporterSecrets(&e))
+		return
+	}
 
 	exporter := fm.exporters.Get(id)
 	if exporter == nil {
@@ -311,6 +506,20 @@ func (fm *FlagManager) createExporterHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if fm.store != nil {
+		dbe := exporterToDBExporter(exporter)
+		created, err := fm.store.CreateExporter(r.Context(), dbe)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		e := dbExporterToExporter(*created)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(maskExporterSecrets(&e))
+		return
+	}
+
 	if err := fm.exporters.Create(&exporter); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -331,6 +540,37 @@ func (fm *FlagManager) updateExporterHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if fm.store != nil {
+		// Preserve secrets if masked
+		existing, err := fm.store.GetExporter(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Exporter not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		existingE := dbExporterToExporter(*existing)
+		if updates.Secret == "********" || updates.Secret == "" {
+			updates.Secret = existingE.Secret
+		}
+		if updates.AzureAccountKey == "********" || updates.AzureAccountKey == "" {
+			updates.AzureAccountKey = existingE.AzureAccountKey
+		}
+
+		dbe := exporterToDBExporter(updates)
+		updated, err := fm.store.UpdateExporter(r.Context(), id, dbe)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		e := dbExporterToExporter(*updated)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(maskExporterSecrets(&e))
+		return
+	}
+
 	if err := fm.exporters.Update(id, &updates); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -343,6 +583,15 @@ func (fm *FlagManager) updateExporterHandler(w http.ResponseWriter, r *http.Requ
 func (fm *FlagManager) deleteExporterHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		if err := fm.store.DeleteExporter(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 
 	if err := fm.exporters.Delete(id); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)

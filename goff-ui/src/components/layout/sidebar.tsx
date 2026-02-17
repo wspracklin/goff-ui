@@ -9,9 +9,12 @@ import {
   Settings,
   FlaskConical,
   Activity,
+  ClipboardList,
   RefreshCw,
   ChevronDown,
   Layers,
+  Users,
+  GitPullRequest,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
@@ -23,6 +26,9 @@ const navigation = [
   { name: 'Flags', href: '/flags', icon: Flag },
   { name: 'Evaluator', href: '/evaluator', icon: FlaskConical },
   { name: 'Activity', href: '/activity', icon: Activity },
+  { name: 'Audit Log', href: '/audit', icon: ClipboardList },
+  { name: 'Segments', href: '/segments', icon: Users },
+  { name: 'Change Requests', href: '/change-requests', icon: GitPullRequest },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -44,6 +50,18 @@ export function Sidebar() {
       .then(data => setDevMode(data.devMode))
       .catch(() => setDevMode(false));
   }, [setDevMode]);
+
+  // Poll for pending change request count
+  const pendingCRQuery = useQuery({
+    queryKey: ['change-requests-count'],
+    queryFn: async () => {
+      const res = await fetch('/api/change-requests/count?status=pending');
+      if (!res.ok) return { count: 0 };
+      return res.json() as Promise<{ count: number }>;
+    },
+    refetchInterval: 30000,
+    staleTime: 10000,
+  });
 
   const flagSetsQuery = useQuery({
     queryKey: ['flagsets'],
@@ -198,6 +216,11 @@ export function Sidebar() {
               {item.name === 'Activity' && flagUpdates.length > 0 && (
                 <Badge variant="secondary" className="ml-auto">
                   {flagUpdates.length}
+                </Badge>
+              )}
+              {item.name === 'Change Requests' && (pendingCRQuery.data?.count ?? 0) > 0 && (
+                <Badge variant="default" className="ml-auto bg-orange-500">
+                  {pendingCRQuery.data?.count}
                 </Badge>
               )}
             </Link>

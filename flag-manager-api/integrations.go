@@ -8,9 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"flag-manager-api/db"
 	"flag-manager-api/git"
 
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 )
 
 // GitIntegration represents a configured git repository integration
@@ -273,9 +275,115 @@ func (s *IntegrationsStore) maskSecrets(integration *GitIntegration) *GitIntegra
 	return &masked
 }
 
+// ---- Conversion helpers between GitIntegration and db.DBIntegration ----
+
+// integrationConfigJSON represents the provider-specific config stored as JSON in the DB.
+type integrationConfigJSON struct {
+	// ADO-specific
+	ADOOrgURL     string `json:"adoOrgUrl,omitempty"`
+	ADOProject    string `json:"adoProject,omitempty"`
+	ADORepository string `json:"adoRepository,omitempty"`
+	ADOPAT        string `json:"adoPat,omitempty"`
+
+	// GitLab-specific
+	GitLabURL       string `json:"gitlabUrl,omitempty"`
+	GitLabProjectID string `json:"gitlabProjectId,omitempty"`
+	GitLabToken     string `json:"gitlabToken,omitempty"`
+
+	// Common
+	BaseBranch string `json:"baseBranch,omitempty"`
+	FlagsPath  string `json:"flagsPath,omitempty"`
+}
+
+func dbIntegrationToGitIntegration(dbi db.DBIntegration) GitIntegration {
+	gi := GitIntegration{
+		ID:          dbi.ID,
+		Name:        dbi.Name,
+		Provider:    dbi.Provider,
+		Description: dbi.Description,
+		IsDefault:   dbi.IsDefault,
+		CreatedAt:   dbi.CreatedAt,
+		UpdatedAt:   dbi.UpdatedAt,
+	}
+
+	if len(dbi.Config) > 0 && string(dbi.Config) != "null" {
+		var cfg integrationConfigJSON
+		if err := json.Unmarshal(dbi.Config, &cfg); err == nil {
+			gi.ADOOrgURL = cfg.ADOOrgURL
+			gi.ADOProject = cfg.ADOProject
+			gi.ADORepository = cfg.ADORepository
+			gi.ADOPAT = cfg.ADOPAT
+			gi.GitLabURL = cfg.GitLabURL
+			gi.GitLabProjectID = cfg.GitLabProjectID
+			gi.GitLabToken = cfg.GitLabToken
+			gi.BaseBranch = cfg.BaseBranch
+			gi.FlagsPath = cfg.FlagsPath
+		}
+	}
+
+	return gi
+}
+
+func gitIntegrationToDBIntegration(gi GitIntegration) db.DBIntegration {
+	dbi := db.DBIntegration{
+		ID:          gi.ID,
+		Name:        gi.Name,
+		Provider:    gi.Provider,
+		Description: gi.Description,
+		IsDefault:   gi.IsDefault,
+		CreatedAt:   gi.CreatedAt,
+		UpdatedAt:   gi.UpdatedAt,
+	}
+
+	cfg := integrationConfigJSON{
+		ADOOrgURL:     gi.ADOOrgURL,
+		ADOProject:    gi.ADOProject,
+		ADORepository: gi.ADORepository,
+		ADOPAT:        gi.ADOPAT,
+		GitLabURL:     gi.GitLabURL,
+		GitLabProjectID: gi.GitLabProjectID,
+		GitLabToken:   gi.GitLabToken,
+		BaseBranch:    gi.BaseBranch,
+		FlagsPath:     gi.FlagsPath,
+	}
+	configJSON, _ := json.Marshal(cfg)
+	dbi.Config = configJSON
+
+	return dbi
+}
+
+func maskIntegrationSecrets(gi *GitIntegration) *GitIntegration {
+	masked := *gi
+	if masked.ADOPAT != "" {
+		masked.ADOPAT = "********"
+	}
+	if masked.GitLabToken != "" {
+		masked.GitLabToken = "********"
+	}
+	return &masked
+}
+
 // HTTP Handlers
 
 func (fm *FlagManager) listIntegrationsHandler(w http.ResponseWriter, r *http.Request) {
+	if fm.store != nil {
+		dbItems, err := fm.store.ListIntegrations(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		integrations := make([]*GitIntegration, 0, len(dbItems))
+		for _, dbi := range dbItems {
+			gi := dbIntegrationToGitIntegration(dbi)
+			integrations = append(integrations, maskIntegrationSecrets(&gi))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"integrations": integrations,
+		})
+		return
+	}
+
 	integrations := fm.integrations.List()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -287,6 +395,22 @@ func (fm *FlagManager) listIntegrationsHandler(w http.ResponseWriter, r *http.Re
 func (fm *FlagManager) getIntegrationHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		dbi, err := fm.store.GetIntegration(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Integration not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		gi := dbIntegrationToGitIntegration(*dbi)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(maskIntegrationSecrets(&gi))
+		return
+	}
 
 	integration := fm.integrations.Get(id)
 	if integration == nil {
@@ -319,6 +443,20 @@ func (fm *FlagManager) createIntegrationHandler(w http.ResponseWriter, r *http.R
 		integration.BaseBranch = "main"
 	}
 
+	if fm.store != nil {
+		dbi := gitIntegrationToDBIntegration(integration)
+		created, err := fm.store.CreateIntegration(r.Context(), dbi)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		gi := dbIntegrationToGitIntegration(*created)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(maskIntegrationSecrets(&gi))
+		return
+	}
+
 	if err := fm.integrations.Create(&integration); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -336,6 +474,37 @@ func (fm *FlagManager) updateIntegrationHandler(w http.ResponseWriter, r *http.R
 	var integration GitIntegration
 	if err := json.NewDecoder(r.Body).Decode(&integration); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if fm.store != nil {
+		// Preserve secrets if masked
+		existing, err := fm.store.GetIntegration(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Integration not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		existingGI := dbIntegrationToGitIntegration(*existing)
+		if integration.ADOPAT == "********" || integration.ADOPAT == "" {
+			integration.ADOPAT = existingGI.ADOPAT
+		}
+		if integration.GitLabToken == "********" || integration.GitLabToken == "" {
+			integration.GitLabToken = existingGI.GitLabToken
+		}
+
+		dbi := gitIntegrationToDBIntegration(integration)
+		updated, err := fm.store.UpdateIntegration(r.Context(), id, dbi)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		gi := dbIntegrationToGitIntegration(*updated)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(maskIntegrationSecrets(&gi))
 		return
 	}
 
@@ -358,6 +527,15 @@ func (fm *FlagManager) deleteIntegrationHandler(w http.ResponseWriter, r *http.R
 	vars := mux.Vars(r)
 	id := vars["id"]
 
+	if fm.store != nil {
+		if err := fm.store.DeleteIntegration(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	if err := fm.integrations.Delete(id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -369,6 +547,55 @@ func (fm *FlagManager) deleteIntegrationHandler(w http.ResponseWriter, r *http.R
 func (fm *FlagManager) testIntegrationHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	if fm.store != nil {
+		// For DB mode, we need to construct a provider from the DB integration
+		dbi, err := fm.store.GetIntegration(r.Context(), id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Integration not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		gi := dbIntegrationToGitIntegration(*dbi)
+		var provider git.Provider
+
+		switch gi.Provider {
+		case "ado":
+			if gi.ADOOrgURL != "" && gi.ADOProject != "" && gi.ADORepository != "" && gi.ADOPAT != "" {
+				provider = git.NewADOClient(gi.ADOOrgURL, gi.ADOProject, gi.ADORepository, gi.ADOPAT, gi.BaseBranch)
+			}
+		case "gitlab":
+			if gi.GitLabURL != "" && gi.GitLabProjectID != "" && gi.GitLabToken != "" {
+				provider = git.NewGitLabClient(gi.GitLabURL, gi.GitLabProjectID, gi.GitLabToken, gi.BaseBranch)
+			}
+		}
+
+		if provider == nil {
+			http.Error(w, "Integration not configured properly", http.StatusNotFound)
+			return
+		}
+
+		_, err = provider.GetFile(gi.FlagsPath)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Successfully connected to repository",
+		})
+		return
+	}
 
 	provider := fm.integrations.GetProvider(id)
 	if provider == nil {

@@ -39,7 +39,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.relayProxy.image.repository }}:{{ .Values.relayProxy.image.tag }}"
+          image: "{{ .Values.relayProxy.image.repository }}:{{ .Values.relayProxy.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.relayProxy.image.pullPolicy }}
           ports:
             - name: http

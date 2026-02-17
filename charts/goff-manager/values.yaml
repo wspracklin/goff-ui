@@ -23,11 +23,11 @@ api:
 
   image:
     # -- Image repository
-    repository: your-registry/flag-manager-api
+    repository: neongridlabs/flag-manager-api
     # -- Image pull policy
     pullPolicy: IfNotPresent
     # -- Image tag (defaults to Chart appVersion)
-    tag: ""
+    tag: "0.1.0"
 
   # -- Service configuration
   service:
@@ -143,11 +143,11 @@ ui:
 
   image:
     # -- Image repository
-    repository: your-registry/goff-ui
+    repository: neongridlabs/goff-ui
     # -- Image pull policy
     pullPolicy: IfNotPresent
     # -- Image tag (defaults to Chart appVersion)
-    tag: ""
+    tag: "0.1.0"
 
   # -- Service configuration
   service:
@@ -223,11 +223,11 @@ relayProxy:
 
   image:
     # -- Image repository
-    repository: gofeatureflag/go-feature-flag
+    repository: neongridlabs/go-feature-flag
     # -- Image pull policy
     pullPolicy: IfNotPresent
     # -- Image tag
-    tag: "latest"
+    tag: "0.1.0"
 
   # -- Service configuration
   service:

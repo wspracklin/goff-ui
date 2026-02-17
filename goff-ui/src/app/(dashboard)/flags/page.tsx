@@ -21,6 +21,11 @@ import {
   ListOrdered,
   FlaskConical,
   TrendingUp,
+  Square,
+  CheckSquare,
+  Trash2,
+  Power,
+  X,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -68,6 +73,9 @@ function FlagsPageContent() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [togglingFlag, setTogglingFlag] = useState<string | null>(null);
+  const [selectedFlags, setSelectedFlags] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isBulkOperating, setIsBulkOperating] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch flagsets to get the name of the selected one
@@ -408,6 +416,68 @@ function FlagsPageContent() {
     }
   };
 
+  const toggleFlagSelection = (key: string) => {
+    setSelectedFlags(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedFlags.size === filteredFlags.length) {
+      setSelectedFlags(new Set());
+    } else {
+      setSelectedFlags(new Set(filteredFlags.map(([key]) => key)));
+    }
+  };
+
+  const handleBulkToggle = async (disabled: boolean) => {
+    if (!selectedFlagSet || selectedFlags.size === 0) return;
+    setIsBulkOperating(true);
+    try {
+      const flagSetName = selectedFlagSetName;
+      if (!flagSetName) throw new Error('No flag set selected');
+      const res = await fetch(`/api/projects/${encodeURIComponent(flagSetName)}/flags/bulk-toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: Array.from(selectedFlags), disabled }),
+      });
+      if (!res.ok) throw new Error('Failed to bulk toggle flags');
+      toast.success(`${selectedFlags.size} flag(s) ${disabled ? 'disabled' : 'enabled'}`);
+      setSelectedFlags(new Set());
+      queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Bulk operation failed');
+    } finally {
+      setIsBulkOperating(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedFlagSet || selectedFlags.size === 0) return;
+    setIsBulkOperating(true);
+    try {
+      const flagSetName = selectedFlagSetName;
+      if (!flagSetName) throw new Error('No flag set selected');
+      const res = await fetch(`/api/projects/${encodeURIComponent(flagSetName)}/flags/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: Array.from(selectedFlags) }),
+      });
+      if (!res.ok) throw new Error('Failed to bulk delete flags');
+      toast.success(`${selectedFlags.size} flag(s) deleted`);
+      setSelectedFlags(new Set());
+      setShowBulkDeleteDialog(false);
+      queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Bulk delete failed');
+    } finally {
+      setIsBulkOperating(false);
+    }
+  };
+
   const filteredFlags = useMemo(() => {
     if (!flagsQuery.data?.flags) return [];
 
@@ -613,6 +683,76 @@ function FlagsPageContent() {
         </CardContent>
       </Card>
 
+      {/* Bulk Action Bar */}
+      {selectedFlags.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          <span className="text-sm font-medium">{selectedFlags.size} selected</span>
+          <div className="h-4 w-px bg-zinc-300 dark:bg-zinc-700" />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleBulkToggle(false)}
+            disabled={isBulkOperating}
+          >
+            <Power className="h-4 w-4 mr-1" />
+            Enable
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleBulkToggle(true)}
+            disabled={isBulkOperating}
+          >
+            <Power className="h-4 w-4 mr-1" />
+            Disable
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => setShowBulkDeleteDialog(true)}
+            disabled={isBulkOperating}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedFlags(new Set())}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation */}
+      <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <DialogHeader>
+          <DialogTitle>Delete {selectedFlags.size} Flag(s)</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete the selected flags? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogContent>
+          <div className="max-h-40 overflow-y-auto space-y-1">
+            {Array.from(selectedFlags).map(key => (
+              <div key={key} className="text-sm font-mono p-1 bg-zinc-100 dark:bg-zinc-800 rounded">
+                {key}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)} disabled={isBulkOperating}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={handleBulkDelete} disabled={isBulkOperating}>
+            {isBulkOperating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Delete {selectedFlags.size} Flag(s)
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
       {/* Flags List */}
       <Card>
         <CardHeader>
@@ -628,6 +768,24 @@ function FlagsPageContent() {
             </div>
           ) : filteredFlags.length > 0 ? (
             <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+              {/* Select All */}
+              {selectedFlagSet && (
+                <div className="flex items-center gap-2 pb-3 -mx-6 px-6">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="flex items-center justify-center w-5 h-5 text-zinc-400 hover:text-zinc-600"
+                  >
+                    {selectedFlags.size === filteredFlags.length && filteredFlags.length > 0 ? (
+                      <CheckSquare className="h-4 w-4 text-blue-500" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                  </button>
+                  <span className="text-xs text-zinc-500">
+                    {selectedFlags.size > 0 ? `${selectedFlags.size} selected` : 'Select all'}
+                  </span>
+                </div>
+              )}
               {filteredFlags.map(([key, flag]) => {
                 const rolloutType = getRolloutType(flag);
                 const onPct = getOnPercentage(flag);
@@ -745,6 +903,19 @@ function FlagsPageContent() {
                     key={key}
                     className="flex items-center justify-between py-4 -mx-6 px-6 first:pt-0 last:pb-0"
                   >
+                    {/* Checkbox for bulk selection */}
+                    {selectedFlagSet && (
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFlagSelection(key); }}
+                        className="flex items-center justify-center w-5 h-5 mr-2 text-zinc-400 hover:text-zinc-600"
+                      >
+                        {selectedFlags.has(key) ? (
+                          <CheckSquare className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
                     {/* Toggle Button or Rollout Type Indicator */}
                     {renderRolloutIndicator()}
 
