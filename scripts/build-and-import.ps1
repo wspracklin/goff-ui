@@ -86,7 +86,7 @@ if (-not $SkipBuild) {
 
     # Build API image
     Write-Host "Building API image: $API_IMAGE" -ForegroundColor Yellow
-    $apiPath = Join-Path $ProjectRoot "flag-manager-api-simple"
+    $apiPath = Join-Path $ProjectRoot "flag-manager-api"
     if (-not (Test-Path $apiPath)) {
         Write-Host "Error: API directory not found at $apiPath" -ForegroundColor Red
         exit 1

@@ -14,7 +14,7 @@ version: '3.8'
 services:
   # Flag Manager API with GitLab integration
   flag-manager-api:
-    build: ./flag-manager-api-simple
+    build: ./flag-manager-api
     ports:
       - "8095:8095"
     volumes:
@@ -39,7 +39,7 @@ services:
 
   # GO Feature Flag Relay Proxy - uses native GitLab retriever
   relay-proxy:
-    image: gofeatureflag/go-feature-flag:latest
+    build: ./go-feature-flag
     ports:
       - "1031:1031"
     volumes:

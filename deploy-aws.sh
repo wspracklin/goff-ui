@@ -13,7 +13,7 @@ echo "=== Deploying to $EC2_IP ==="
 # Build images locally
 echo "Building Docker images..."
 docker build -t goff-ui:latest ./goff-ui
-docker build -t flag-manager-api:latest ./flag-manager-api-simple
+docker build -t flag-manager-api:latest ./flag-manager-api
 
 # Save images
 echo "Saving Docker images..."

@@ -1,10 +1,7 @@
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
-
-# Install git for go mod download
-RUN apk add --no-cache git
 
 # Copy everything
 COPY . .
@@ -22,11 +19,12 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-# Copy the binary from builder
 COPY --from=builder /app/flag-manager-api .
 
-# Run as non-root user
-RUN adduser -D -u 1000 appuser
+RUN adduser -D -u 1000 appuser && \
+    mkdir -p /data/flags && \
+    chown -R appuser:appuser /data
+
 USER appuser
 
 EXPOSE 8080

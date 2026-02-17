@@ -5,7 +5,7 @@ version: '3.8'
 
 services:
   flag-manager-api:
-    build: ./flag-manager-api-simple
+    build: ./flag-manager-api
     restart: always
     volumes:
       - flags-data:/data/flags
@@ -29,7 +29,7 @@ services:
       - goff-network
 
   relay-proxy:
-    image: gofeatureflag/go-feature-flag:latest
+    build: ./go-feature-flag
     restart: always
     volumes:
       - ./relay-proxy-config.yaml:/goff/goff-proxy.yaml:ro

@@ -87,7 +87,7 @@ if [ "$SKIP_BUILD" = false ]; then
 
     # Build API image
     echo "Building API image: $API_IMAGE"
-    API_PATH="$PROJECT_ROOT/flag-manager-api-simple"
+    API_PATH="$PROJECT_ROOT/flag-manager-api"
     if [ ! -d "$API_PATH" ]; then
         echo "Error: API directory not found at $API_PATH"
         exit 1

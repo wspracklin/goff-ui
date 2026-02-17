@@ -1,10 +1,9 @@
-module github.com/your-org/flag-manager-api
+module flag-manager-api
 
-go 1.22
+go 1.24
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.29.0
-	k8s.io/client-go v0.29.0
 )

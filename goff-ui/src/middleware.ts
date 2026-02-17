@@ -1,18 +1,17 @@
 import { auth } from '@/auth';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const isDevMode = process.env.DEV_MODE === 'true';
 
-export default auth((req) => {
-  // In dev mode, skip all auth checks
-  if (isDevMode) {
-    // Redirect login page to home in dev mode
-    if (req.nextUrl.pathname === '/login') {
-      return NextResponse.redirect(new URL('/', req.url));
-    }
-    return NextResponse.next();
+// In dev mode, bypass NextAuth entirely to avoid AUTH_URL issues
+function devMiddleware(req: NextRequest) {
+  if (req.nextUrl.pathname === '/login') {
+    return NextResponse.redirect(new URL('/', req.url));
   }
+  return NextResponse.next();
+}
 
+const authMiddleware = auth((req) => {
   const isLoggedIn = !!req.auth;
   const isLoginPage = req.nextUrl.pathname === '/login';
   const isAuthApi = req.nextUrl.pathname.startsWith('/api/auth');
@@ -34,6 +33,8 @@ export default auth((req) => {
 
   return NextResponse.next();
 });
+
+export default isDevMode ? devMiddleware : authMiddleware;
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],

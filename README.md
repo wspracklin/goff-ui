@@ -59,7 +59,7 @@ That's it! The system runs with:
 
 ## Components
 
-### 1. Flag Manager API (`flag-manager-api-simple/`)
+### 1. Flag Manager API (`flag-manager-api/`)
 A Go service providing:
 - CRUD operations for feature flags (stored as YAML files)
 - Git integration for PR-based workflows (ADO, GitLab)
@@ -152,7 +152,7 @@ See `charts/goff-manager/values.yaml` for all configuration options.
 1. **Build and push images:**
    ```bash
    # Flag Manager API
-   cd flag-manager-api-simple
+   cd flag-manager-api
    docker build -t your-registry/flag-manager-api:latest .
    docker push your-registry/flag-manager-api:latest
 
@@ -239,7 +239,7 @@ See `charts/goff-manager/values.yaml` for all configuration options.
 
 ```
 go-ui/
-├── flag-manager-api-simple/   # Go Flag Manager API (file-based)
+├── flag-manager-api/   # Go Flag Manager API (file-based)
 │   ├── main.go                # Core API
 │   ├── integrations.go        # Git integration management
 │   ├── flagsets.go            # Flag set management
@@ -247,10 +247,6 @@ go-ui/
 │   ├── exporters.go           # Exporter configs
 │   ├── retrievers.go          # Retriever configs
 │   ├── git/                   # Git providers (ADO, GitLab)
-│   ├── Dockerfile
-│   └── go.mod
-├── flag-manager-api/          # Go Flag Manager API (K8s ConfigMap)
-│   ├── main.go
 │   ├── Dockerfile
 │   └── go.mod
 ├── goff-ui/                   # Next.js Frontend
@@ -281,7 +277,7 @@ go-ui/
 
 1. **Start the Flag Manager API:**
    ```bash
-   cd flag-manager-api-simple
+   cd flag-manager-api
    FLAGS_DIR=./flags PORT=8095 go run .
    ```
 
@@ -305,7 +301,7 @@ go-ui/
 
 ```bash
 # API tests
-cd flag-manager-api-simple
+cd flag-manager-api
 go test -v ./...
 
 # Frontend tests
