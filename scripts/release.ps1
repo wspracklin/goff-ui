@@ -317,13 +317,13 @@ Write-Ok 'Updated versions.json'
 
 # Update component version files
 if ($ApiChanged) {
-    $versionFilePath = Join-Path $ProjectRoot $ApiDir 'VERSION'
+    $versionFilePath = Join-Path (Join-Path $ProjectRoot $ApiDir) 'VERSION'
     $NewApiVersion | Set-Content $versionFilePath -NoNewline -Encoding UTF8
     Write-Ok "Updated $ApiDir/VERSION -> $NewApiVersion"
 }
 
 if ($UiChanged) {
-    $packageJsonPath = Join-Path $ProjectRoot $UiDir 'package.json'
+    $packageJsonPath = Join-Path (Join-Path $ProjectRoot $UiDir) 'package.json'
     $pkg = Get-Content $packageJsonPath -Raw | ConvertFrom-Json
     $pkg.version = $NewUiVersion
     $pkg | ConvertTo-Json -Depth 10 | Set-Content $packageJsonPath -Encoding UTF8
@@ -331,7 +331,7 @@ if ($UiChanged) {
 }
 
 if ($RelayChanged) {
-    $versionFilePath = Join-Path $ProjectRoot $RelayDir 'VERSION'
+    $versionFilePath = Join-Path (Join-Path $ProjectRoot $RelayDir) 'VERSION'
     $NewRelayVersion | Set-Content $versionFilePath -NoNewline -Encoding UTF8
     Write-Ok "Updated $RelayDir/VERSION -> $NewRelayVersion"
 }
@@ -373,7 +373,7 @@ if (-not $SkipDocker) {
 # Phase 7 - Update Helm chart
 # ============================================================================
 
-$ChartDir   = Join-Path $ProjectRoot 'charts' 'goff-manager'
+$ChartDir   = Join-Path (Join-Path $ProjectRoot 'charts') 'goff-manager'
 $ChartYaml  = Join-Path $ChartDir 'Chart.yaml'
 $ValuesYaml = Join-Path $ChartDir 'values.yaml'
 
@@ -497,9 +497,9 @@ foreach ($tag in $TagsToCreate) {
 # Stage files
 git add $VersionsFile
 git add $ChartYaml $ValuesYaml
-if ($ApiChanged)   { git add (Join-Path $ProjectRoot $ApiDir 'VERSION') }
-if ($UiChanged)    { git add (Join-Path $ProjectRoot $UiDir 'package.json') }
-if ($RelayChanged) { git add (Join-Path $ProjectRoot $RelayDir 'VERSION') }
+if ($ApiChanged)   { git add (Join-Path (Join-Path $ProjectRoot $ApiDir) 'VERSION') }
+if ($UiChanged)    { git add (Join-Path (Join-Path $ProjectRoot $UiDir) 'package.json') }
+if ($RelayChanged) { git add (Join-Path (Join-Path $ProjectRoot $RelayDir) 'VERSION') }
 
 # Build commit message body
 $commitBody = ''
