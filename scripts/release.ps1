@@ -59,6 +59,9 @@ $ErrorActionPreference = 'Stop'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $ProjectRoot = Split-Path -Parent $ScriptDir
 
+# UTF-8 without BOM — PowerShell 5.1's -Encoding UTF8 writes a BOM that breaks JSON parsers
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
 # --- Color helpers ---
 function Write-Info  { param([string]$Message) Write-Host "[INFO] "  -ForegroundColor Blue   -NoNewline; Write-Host $Message }
 function Write-Ok    { param([string]$Message) Write-Host "[OK] "    -ForegroundColor Green  -NoNewline; Write-Host $Message }
@@ -312,13 +315,13 @@ $versions.platform = $NewPlatformVersion
 $versions.components.api.version   = $NewApiVersion
 $versions.components.ui.version    = $NewUiVersion
 $versions.components.relay.version = $NewRelayVersion
-$versions | ConvertTo-Json -Depth 10 | Set-Content $VersionsFile -Encoding UTF8
+[System.IO.File]::WriteAllText($VersionsFile, (($versions | ConvertTo-Json -Depth 10) + "`n"), $Utf8NoBom)
 Write-Ok 'Updated versions.json'
 
 # Update component version files
 if ($ApiChanged) {
     $versionFilePath = Join-Path (Join-Path $ProjectRoot $ApiDir) 'VERSION'
-    $NewApiVersion | Set-Content $versionFilePath -NoNewline -Encoding UTF8
+    [System.IO.File]::WriteAllText($versionFilePath, $NewApiVersion, $Utf8NoBom)
     Write-Ok "Updated $ApiDir/VERSION -> $NewApiVersion"
 }
 
@@ -326,13 +329,13 @@ if ($UiChanged) {
     $packageJsonPath = Join-Path (Join-Path $ProjectRoot $UiDir) 'package.json'
     $pkg = Get-Content $packageJsonPath -Raw | ConvertFrom-Json
     $pkg.version = $NewUiVersion
-    $pkg | ConvertTo-Json -Depth 10 | Set-Content $packageJsonPath -Encoding UTF8
+    [System.IO.File]::WriteAllText($packageJsonPath, (($pkg | ConvertTo-Json -Depth 10) + "`n"), $Utf8NoBom)
     Write-Ok "Updated $UiDir/package.json version -> $NewUiVersion"
 }
 
 if ($RelayChanged) {
     $versionFilePath = Join-Path (Join-Path $ProjectRoot $RelayDir) 'VERSION'
-    $NewRelayVersion | Set-Content $versionFilePath -NoNewline -Encoding UTF8
+    [System.IO.File]::WriteAllText($versionFilePath, $NewRelayVersion, $Utf8NoBom)
     Write-Ok "Updated $RelayDir/VERSION -> $NewRelayVersion"
 }
 
@@ -383,7 +386,7 @@ Write-Info 'Updating Helm chart...'
 $chartContent = Get-Content $ChartYaml -Raw
 $chartContent = $chartContent -replace '(?m)^version: .*', "version: $NewPlatformVersion"
 $chartContent = $chartContent -replace '(?m)^appVersion: .*', "appVersion: `"$NewPlatformVersion`""
-Set-Content $ChartYaml $chartContent -NoNewline -Encoding UTF8
+[System.IO.File]::WriteAllText($ChartYaml, $chartContent, $Utf8NoBom)
 Write-Ok "Updated Chart.yaml (version: $NewPlatformVersion, appVersion: $NewPlatformVersion)"
 
 # Update values.yaml image tags (context-aware YAML editing)
@@ -429,7 +432,7 @@ if ($updates.Count -gt 0) {
         }
     }
 
-    $lines | Set-Content $ValuesYaml -Encoding UTF8
+    [System.IO.File]::WriteAllText($ValuesYaml, (($lines -join "`n") + "`n"), $Utf8NoBom)
 }
 Write-Ok 'Updated values.yaml image tags'
 
