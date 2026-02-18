@@ -1,22 +1,22 @@
 {
-    "platform":  "0.1.6",
+    "platform":  "0.1.7",
     "components":  {
                        "api":  {
-                                   "version":  "1.1.5",
+                                   "version":  "1.1.6",
                                    "dir":  "flag-manager-api",
                                    "versionFile":  "flag-manager-api/VERSION",
                                    "image":  "neongridlabs/flag-manager-api",
                                    "helmKey":  "api"
                                },
                        "ui":  {
-                                  "version":  "1.1.5",
+                                  "version":  "1.1.6",
                                   "dir":  "goff-ui",
                                   "versionFile":  "goff-ui/package.json",
                                   "image":  "neongridlabs/goff-ui",
                                   "helmKey":  "ui"
                               },
                        "relay":  {
-                                     "version":  "1.1.5",
+                                     "version":  "1.1.6",
                                      "dir":  "go-feature-flag",
                                      "versionFile":  "go-feature-flag/VERSION",
                                      "image":  "neongridlabs/go-feature-flag",
