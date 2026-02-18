@@ -368,6 +368,63 @@ if (-not $SkipDocker) {
     if ($ApiChanged)   { Invoke-DockerBuildPush $ApiImage   $NewApiVersion   $ApiDir   'API'   }
     if ($UiChanged)    { Invoke-DockerBuildPush $UiImage    $NewUiVersion    $UiDir    'UI'    }
     if ($RelayChanged) { Invoke-DockerBuildPush $RelayImage $NewRelayVersion $RelayDir 'Relay' }
+
+    # --- Push Docker Hub READMEs ---
+    $dockerHubDir = Join-Path $ProjectRoot 'dockerhub'
+    $readmeMap = @{
+        $ApiImage   = Join-Path (Join-Path $dockerHubDir 'flag-manager-api') 'README.md'
+        $UiImage    = Join-Path (Join-Path $dockerHubDir 'goff-ui')          'README.md'
+        $RelayImage = Join-Path (Join-Path $dockerHubDir 'go-feature-flag')  'README.md'
+    }
+
+    # Authenticate with Docker Hub (reuse existing docker login credentials)
+    $tokenResponse = $null
+    $dockerConfig = Join-Path (Join-Path $env:USERPROFILE '.docker') 'config.json'
+    if (Test-Path $dockerConfig) {
+        $config = Get-Content $dockerConfig -Raw | ConvertFrom-Json
+        $hubAuth = $null
+        if ($config.auths -and $config.auths.'https://index.docker.io/v1/') {
+            $hubAuth = $config.auths.'https://index.docker.io/v1/'.auth
+        }
+        if ($hubAuth) {
+            $decoded = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($hubAuth))
+            $parts = $decoded.Split(':', 2)
+            $loginBody = @{ username = $parts[0]; password = $parts[1] } | ConvertTo-Json
+            try {
+                $tokenResponse = Invoke-RestMethod -Uri 'https://hub.docker.com/v2/users/login/' `
+                    -Method Post -ContentType 'application/json' -Body $loginBody
+            } catch {
+                Write-Warn "Docker Hub login failed - skipping README push: $_"
+            }
+        } else {
+            Write-Warn 'No Docker Hub credentials found in docker config - skipping README push'
+        }
+    } else {
+        Write-Warn 'No docker config found - skipping README push'
+    }
+
+    if ($tokenResponse) {
+        $headers = @{ Authorization = "Bearer $($tokenResponse.token)" }
+
+        foreach ($image in $readmeMap.Keys) {
+            $readmePath = $readmeMap[$image]
+            if (-not (Test-Path $readmePath)) {
+                Write-Warn "README not found at $readmePath - skipping"
+                continue
+            }
+            # image is "namespace/repo" — split for the API URL
+            $ns, $repo = $image.Split('/', 2)
+            $readmeContent = Get-Content $readmePath -Raw
+            $body = @{ full_description = $readmeContent } | ConvertTo-Json -Depth 2
+            try {
+                Invoke-RestMethod -Uri "https://hub.docker.com/v2/repositories/${ns}/${repo}/" `
+                    -Method Patch -ContentType 'application/json' -Headers $headers -Body $body | Out-Null
+                Write-Ok "Pushed README for $image"
+            } catch {
+                Write-Warn "Failed to push README for ${image}: $_"
+            }
+        }
+    }
 } else {
     Write-Info 'Skipping Docker build & push (-SkipDocker)'
 }

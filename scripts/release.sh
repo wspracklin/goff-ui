@@ -421,6 +421,56 @@ if [[ "$SKIP_DOCKER" != "true" ]]; then
     if [[ "$RELAY_CHANGED" == "true" ]]; then
         docker_build_push "$RELAY_IMAGE" "$NEW_RELAY_VERSION" "$RELAY_DIR" "Relay"
     fi
+
+    # --- Push Docker Hub READMEs ---
+    push_dockerhub_readme() {
+        local image="$1" readme="$2"
+        if [[ ! -f "$readme" ]]; then
+            warn "README not found at $readme — skipping"
+            return
+        fi
+        local ns="${image%%/*}"
+        local repo="${image#*/}"
+        local content
+        content=$(cat "$readme")
+        local payload
+        payload=$(jq -n --arg desc "$content" '{ full_description: $desc }')
+
+        local response
+        response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X PATCH "https://hub.docker.com/v2/repositories/${ns}/${repo}/" \
+            -H "Authorization: Bearer $DOCKERHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$payload")
+
+        if [[ "$response" == "200" ]]; then
+            ok "Pushed README for $image"
+        else
+            warn "Failed to push README for $image (HTTP $response)"
+        fi
+    }
+
+    DOCKERHUB_TOKEN=""
+    DOCKER_CONFIG="${HOME}/.docker/config.json"
+    if [[ -f "$DOCKER_CONFIG" ]] && command -v jq &>/dev/null; then
+        HUB_AUTH=$(jq -r '.auths["https://index.docker.io/v1/"].auth // empty' "$DOCKER_CONFIG")
+        if [[ -n "$HUB_AUTH" ]]; then
+            DECODED=$(echo "$HUB_AUTH" | base64 -d 2>/dev/null)
+            HUB_USER="${DECODED%%:*}"
+            HUB_PASS="${DECODED#*:}"
+            DOCKERHUB_TOKEN=$(curl -s -X POST "https://hub.docker.com/v2/users/login/" \
+                -H "Content-Type: application/json" \
+                -d "{\"username\":\"$HUB_USER\",\"password\":\"$HUB_PASS\"}" | jq -r '.token // empty')
+        fi
+    fi
+
+    if [[ -n "$DOCKERHUB_TOKEN" ]]; then
+        push_dockerhub_readme "$API_IMAGE"   "$PROJECT_ROOT/dockerhub/flag-manager-api/README.md"
+        push_dockerhub_readme "$UI_IMAGE"    "$PROJECT_ROOT/dockerhub/goff-ui/README.md"
+        push_dockerhub_readme "$RELAY_IMAGE" "$PROJECT_ROOT/dockerhub/go-feature-flag/README.md"
+    else
+        warn "No Docker Hub credentials found — skipping README push"
+    fi
 else
     info "Skipping Docker build & push (--skip-docker)"
 fi
