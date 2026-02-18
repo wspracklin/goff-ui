@@ -292,6 +292,9 @@ func main() {
 	api.HandleFunc("/projects/{project}/flags/bulk-delete", fm.bulkDeleteHandler).Methods("POST")
 	api.HandleFunc("/projects/{project}/flags/{flagKey}/clone", fm.cloneFlagHandler).Methods("POST")
 
+	// Flag discovery import
+	api.HandleFunc("/flags/import", fm.importFlagsHandler).Methods("POST")
+
 	// Build middleware chain
 	var handler http.Handler = r
 	handler = BodySizeLimitMiddleware(1 << 20)(handler) // 1MB

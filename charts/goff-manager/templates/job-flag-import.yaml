@@ -1,0 +1,85 @@
+{{- if .Values.flagDiscovery.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "goff-manager.flagImport.fullname" . }}
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.flagImport.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.flagDiscovery.jobTimeout | default 120 }}
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "goff-manager.flagImport.labels" . | nindent 8 }}
+    spec:
+      {{- include "goff-manager.imagePullSecrets" . | nindent 6 }}
+      restartPolicy: OnFailure
+      {{- with .Values.flagDiscovery.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.flagDiscovery.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: flag-import
+          image: "{{ .Values.flagDiscovery.image.repository }}:{{ .Values.flagDiscovery.image.tag }}"
+          imagePullPolicy: {{ .Values.flagDiscovery.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              API_URL="{{ include "goff-manager.api.internalUrl" . }}"
+              MANIFEST_DIR="/manifests"
+
+              echo "Waiting for Flag Manager API at ${API_URL}..."
+              attempts=0
+              until wget --spider -q "${API_URL}/health" 2>/dev/null; do
+                attempts=$((attempts + 1))
+                if [ $attempts -ge 30 ]; then
+                  echo "ERROR: API not ready after 30 attempts"
+                  exit 1
+                fi
+                echo "  attempt ${attempts}/30 - retrying in 2s..."
+                sleep 2
+              done
+              echo "API is ready."
+
+              imported=0
+              failed=0
+              for manifest in ${MANIFEST_DIR}/*.json; do
+                [ -f "$manifest" ] || continue
+                app=$(basename "$manifest" .json)
+                echo "Importing flags for: ${app}"
+                if wget -q -O - --header="Content-Type: application/json" \
+                  --post-file="$manifest" \
+                  "${API_URL}/api/flags/import" 2>&1; then
+                  echo ""
+                  imported=$((imported + 1))
+                else
+                  echo "WARNING: Failed to import ${app}"
+                  failed=$((failed + 1))
+                fi
+              done
+
+              echo "Done. Imported: ${imported}, Failed: ${failed}"
+              if [ $failed -gt 0 ]; then
+                exit 1
+              fi
+          volumeMounts:
+            - name: manifests
+              mountPath: /manifests
+              readOnly: true
+      volumes:
+        - name: manifests
+          configMap:
+            name: {{ include "goff-manager.flagImport.fullname" . }}-manifests
+{{- end }}

@@ -211,6 +211,21 @@ imagePullSecrets:
 {{- end }}
 
 {{/*
+Flag Import Job fullname
+*/}}
+{{- define "goff-manager.flagImport.fullname" -}}
+{{- printf "%s-flag-import" (include "goff-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Flag Import labels
+*/}}
+{{- define "goff-manager.flagImport.labels" -}}
+{{ include "goff-manager.labels" . }}
+app.kubernetes.io/component: flag-import
+{{- end }}
+
+{{/*
 Storage class for PVCs
 */}}
 {{- define "goff-manager.storageClass" -}}

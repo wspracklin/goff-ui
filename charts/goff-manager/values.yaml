@@ -430,3 +430,34 @@ extraVolumeMountsUi: []
 
 # -- Extra volume mounts for Relay Proxy
 extraVolumeMountsRelayProxy: []
+
+# =============================================================================
+# Flag Discovery Pipeline Configuration
+# =============================================================================
+flagDiscovery:
+  # -- Enable the flag discovery import pipeline
+  enabled: false
+
+  # -- Image used by the import Job (must be available in air-gapped registry)
+  image:
+    repository: curlimages/curl
+    tag: "8.5.0"
+    pullPolicy: IfNotPresent
+
+  # -- Job active deadline in seconds
+  jobTimeout: 120
+
+  # -- Node selector for the import Job
+  nodeSelector: {}
+
+  # -- Tolerations for the import Job
+  tolerations: []
+
+  # -- Flag manifests to import (one entry per application).
+  # Each entry must have an importPayload field containing the JSON body
+  # for POST /api/flags/import.
+  # Example:
+  #   my-app:
+  #     importPayload: |
+  #       {"project":"my-project","flags":[{"key":"dark-mode","type":"boolean","source":"src/theme.tsx:42"}]}
+  manifests: {}

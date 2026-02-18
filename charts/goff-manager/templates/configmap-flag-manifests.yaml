@@ -1,0 +1,13 @@
+{{- if .Values.flagDiscovery.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "goff-manager.flagImport.fullname" . }}-manifests
+  namespace: {{ include "goff-manager.namespace" . }}
+  labels:
+    {{- include "goff-manager.flagImport.labels" . | nindent 4 }}
+data:
+  {{- range $name, $manifest := .Values.flagDiscovery.manifests }}
+  {{ $name }}.json: {{ $manifest.importPayload | quote }}
+  {{- end }}
+{{- end }}
