@@ -27,6 +27,7 @@ The UI is now available at `http://localhost:4000`.
 - **Flag evaluator** — test flag evaluations against user contexts
 - **Real-time updates** — WebSocket-powered live flag change notifications
 - **Activity feed** — audit trail and change history viewer
+- **Flag discovery** — auto-imported flags from CI/CD pipelines appear instantly in the UI
 - **Dark mode** — system-aware theme with manual toggle
 - **Keycloak SSO** — OpenID Connect authentication (optional)
 

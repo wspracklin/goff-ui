@@ -194,6 +194,7 @@ healthcheck:
 | `GET` | `/api/projects` | List projects |
 | `*` | `/api/projects/{project}/flags` | Flag CRUD |
 | `GET` | `/api/flags/raw` | Raw flag export (used by relay proxy) |
+| `POST` | `/api/flags/import` | Bulk flag import (flag discovery pipeline) |
 | `*` | `/api/segments` | Audience segments |
 | `*` | `/api/flagsets` | Flag sets |
 | `*` | `/api/change-requests` | Approval workflows |
@@ -205,6 +206,51 @@ healthcheck:
 | `*` | `/api/exporters` | Exporter config |
 | `*` | `/api/retrievers` | Retriever config |
 | `*` | `/api/integrations` | Git integration status |
+
+## Flag Discovery Pipeline
+
+The import endpoint (`POST /api/flags/import`) enables automated flag creation from CI/CD pipelines. A scanner extracts flag keys from source code at build time, and the resulting manifest is posted to this endpoint during deployment.
+
+### Import Request
+
+```bash
+curl -X POST http://localhost:8095/api/flags/import \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project": "my-project",
+    "flags": [
+      { "key": "dark-mode", "type": "boolean", "source": "src/theme.tsx:42" },
+      { "key": "checkout-v2", "type": "string", "source": "src/checkout.go:10" }
+    ],
+    "metadata": {
+      "app": "my-service",
+      "version": "1.2.3",
+      "generatedAt": "2026-02-18T12:00:00Z"
+    }
+  }'
+```
+
+### Import Response
+
+```json
+{ "created": 1, "skipped": 1, "errors": [] }
+```
+
+The endpoint is **idempotent** — flags that already exist are silently skipped. Returns `201` when flags are created, `200` when all are skipped.
+
+Supported flag types: `boolean`, `string`, `number`, `object`. Each type gets sensible default variations (e.g. boolean creates `True`/`False` variations defaulting to `False`).
+
+### Scanner CLI
+
+The companion `goff-scan` CLI extracts flag keys from source code across all major OpenFeature SDKs (Go, JS/TS, Python, .NET, Java, Ruby, React hooks):
+
+```bash
+goff-scan --format json --project my-project ./src > flags-manifest.json
+```
+
+### Helm Integration
+
+When deploying to Kubernetes, the Helm chart can run a post-install/post-upgrade Job that automatically posts flag manifests to the import API. See the `flagDiscovery` section in the chart values.
 
 ## Helm Chart
 

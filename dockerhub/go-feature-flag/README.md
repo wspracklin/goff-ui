@@ -196,9 +196,14 @@ Client SDKs ──► Relay Proxy (:1031) ◄── polls ── Flag Manager AP
                      │  WebSocket                    CRUD / audit
                      ▼                                    │
                 GOFF UI (:4000) ──────────────────────────┘
+                                                          ▲
+                                        Flag Discovery ───┘
+                                     (CI/CD → import API)
 ```
 
 The relay proxy sits between your application's feature flag SDKs and the flag storage backend. It caches flag definitions locally and serves evaluations with low latency.
+
+Flags can be created manually via the UI, or automatically via the **flag discovery pipeline** — a CI/CD scanner extracts flag keys from source code and posts them to the API's import endpoint. The relay proxy picks up new flags on its next polling cycle.
 
 ## Helm Chart
 
