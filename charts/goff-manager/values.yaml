@@ -27,7 +27,7 @@ api:
     # -- Image pull policy
     pullPolicy: IfNotPresent
     # -- Image tag (defaults to Chart appVersion)
-    tag: "1.1.8"
+    tag: "1.1.9"
 
   # -- Service configuration
   service:
