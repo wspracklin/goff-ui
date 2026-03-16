@@ -50,13 +50,9 @@ import { localFlagAPI, LocalFlagConfig } from '@/lib/local-api';
 import { formatValue, getValueType, getValueColor } from '@/lib/utils';
 import { toast } from 'sonner';
 import { CodeSnippets } from '@/components/CodeSnippets';
-
-interface FlagSet {
-  id: string;
-  name: string;
-  apiKeys: string[];
-  isDefault: boolean;
-}
+import { getRolloutType, isFlagOn, isPercentageRollout, getOnPercentage, RolloutType } from '@/lib/flag-utils';
+import { queryKeys } from '@/lib/query-keys';
+import { FlagSet } from '@/lib/types';
 
 export default function FlagDetailPage() {
   const params = useParams();
@@ -72,65 +68,6 @@ export default function FlagDetailPage() {
   // Handle catch-all route - key comes as array of path segments
   const keySegments = params.key as string[];
   const flagKey = keySegments ? keySegments.join('/') : '';
-
-  // Helper to determine rollout type
-  type RolloutType = 'simple' | 'percentage' | 'progressive' | 'scheduled' | 'experimentation';
-
-  const getRolloutType = (flag: LocalFlagConfig): RolloutType => {
-    if (flag.scheduledRollout && flag.scheduledRollout.length > 0) {
-      const hasValidSteps = flag.scheduledRollout.some(step => step.date);
-      if (hasValidSteps) return 'scheduled';
-    }
-    if (flag.experimentation && (flag.experimentation.start || flag.experimentation.end)) {
-      return 'experimentation';
-    }
-    const pr = flag.defaultRule?.progressiveRollout;
-    if (pr && (pr.initial?.date || pr.end?.date)) {
-      return 'progressive';
-    }
-    if (flag.defaultRule?.percentage && Object.keys(flag.defaultRule.percentage).length > 0) {
-      return 'percentage';
-    }
-    return 'simple';
-  };
-
-  // Helper to check if flag uses percentage rollout
-  const isPercentageRollout = (flag: LocalFlagConfig): boolean => {
-    return !!(flag.defaultRule?.percentage && Object.keys(flag.defaultRule.percentage).length > 0);
-  };
-
-  // Helper to determine if a flag is currently "on" based on defaultRule
-  const isFlagOn = (flag: LocalFlagConfig): boolean => {
-    if (flag.disable) return false;
-
-    // For percentage rollout, check if "on" variations have any percentage
-    if (isPercentageRollout(flag)) {
-      const onVariations = ['enabled', 'on', 'true', 'yes', 'active'];
-      const percentage = flag.defaultRule?.percentage || {};
-      return Object.entries(percentage).some(
-        ([variation, pct]) => onVariations.includes(variation.toLowerCase()) && pct > 0
-      );
-    }
-
-    const defaultVariation = flag.defaultRule?.variation;
-    if (!defaultVariation) return false;
-    const onVariations = ['enabled', 'on', 'true', 'yes', 'active'];
-    return onVariations.includes(defaultVariation.toLowerCase());
-  };
-
-  // Helper to get percentage for rollout flags
-  const getOnPercentage = (flag: LocalFlagConfig): number => {
-    if (!isPercentageRollout(flag)) return isFlagOn(flag) ? 100 : 0;
-    const onVariations = ['enabled', 'on', 'true', 'yes', 'active'];
-    const percentage = flag.defaultRule?.percentage || {};
-    let totalOn = 0;
-    for (const [variation, pct] of Object.entries(percentage)) {
-      if (onVariations.includes(variation.toLowerCase())) {
-        totalOn += pct;
-      }
-    }
-    return totalOn;
-  };
 
   // Helper to detect flag type from variations
   const detectFlagType = (flag: LocalFlagConfig): 'boolean' | 'string' | 'number' | 'json' => {
@@ -159,7 +96,7 @@ export default function FlagDetailPage() {
 
   // Fetch flagset info for context display
   const flagSetQuery = useQuery({
-    queryKey: ['flagset', selectedFlagSet],
+    queryKey: queryKeys.flagset(selectedFlagSet!),
     queryFn: async () => {
       if (!selectedFlagSet) return null;
       const response = await fetch(`/api/flagsets/${selectedFlagSet}`);
@@ -171,7 +108,7 @@ export default function FlagDetailPage() {
 
   // Fetch the specific flag from the selected flagset
   const flagQuery = useQuery({
-    queryKey: ['flagset-flag', selectedFlagSet, flagKey],
+    queryKey: queryKeys.flagsetFlag(selectedFlagSet!, flagKey),
     queryFn: async () => {
       if (!selectedFlagSet) return null;
       const response = await fetch(`/api/flagsets/${selectedFlagSet}/flags`);
@@ -209,8 +146,8 @@ export default function FlagDetailPage() {
         }
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
-      await queryClient.invalidateQueries({ queryKey: ['flagset-flag', selectedFlagSet, flagKey] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.flagsetFlags(selectedFlagSet!) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.flagsetFlag(selectedFlagSet!, flagKey) });
 
       toast.success(`Flag "${flagKey}" deleted`);
       router.push('/flags');
@@ -243,7 +180,7 @@ export default function FlagDetailPage() {
       toast.success(`Flag cloned as "${cloneKey.trim()}"`);
       setShowCloneDialog(false);
       setCloneKey('');
-      queryClient.invalidateQueries({ queryKey: ['flagset-flags', selectedFlagSet] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.flagsetFlags(selectedFlagSet!) });
       router.push(`/flags/${cloneKey.trim()}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Clone failed');

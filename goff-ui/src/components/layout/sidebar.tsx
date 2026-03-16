@@ -17,6 +17,8 @@ import {
   GitPullRequest,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { queryKeys } from '@/lib/query-keys';
+import { FlagSet } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
@@ -31,12 +33,6 @@ const navigation = [
   { name: 'Change Requests', href: '/change-requests', icon: GitPullRequest },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
-
-interface FlagSet {
-  id: string;
-  name: string;
-  isDefault: boolean;
-}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -64,7 +60,7 @@ export function Sidebar() {
   });
 
   const flagSetsQuery = useQuery({
-    queryKey: ['flagsets'],
+    queryKey: queryKeys.flagsets,
     queryFn: async () => {
       const res = await fetch('/api/flagsets');
       if (!res.ok) throw new Error('Failed to fetch flag sets');

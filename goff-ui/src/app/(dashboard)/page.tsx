@@ -16,15 +16,12 @@ import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { useAppStore } from '@/lib/store';
 import goffClient from '@/lib/api';
-import { localFlagAPI } from '@/lib/local-api';
+import { localFlagAPI, LocalFlagConfig } from '@/lib/local-api';
 import { formatRelativeTime } from '@/lib/utils';
+import { isFlagOn, isPercentageRollout, getOnPercentage } from '@/lib/flag-utils';
+import { queryKeys } from '@/lib/query-keys';
+import { FlagSet, FlagConfiguration } from '@/lib/types';
 import Link from 'next/link';
-
-interface FlagSet {
-  id: string;
-  name: string;
-  isDefault: boolean;
-}
 
 export default function DashboardPage() {
   const { isConnected, config, isDevMode, selectedFlagSet } = useAppStore();
@@ -32,14 +29,14 @@ export default function DashboardPage() {
   // Connection is now handled by ConnectionProvider on app start
 
   const healthQuery = useQuery({
-    queryKey: ['health'],
+    queryKey: queryKeys.health,
     queryFn: () => goffClient.getHealth(),
     enabled: isConnected && !isDevMode,
     refetchInterval: 30000,
   });
 
   const infoQuery = useQuery({
-    queryKey: ['info'],
+    queryKey: queryKeys.info,
     queryFn: () => goffClient.getInfo(),
     enabled: isConnected && !isDevMode,
     refetchInterval: 30000,
@@ -47,7 +44,7 @@ export default function DashboardPage() {
 
   // Fetch flags from the selected flagset (or fallback to local/relay proxy)
   const flagsQuery = useQuery({
-    queryKey: selectedFlagSet ? ['flagset-flags', selectedFlagSet] : (isDevMode ? ['local-flags'] : ['flags-config']),
+    queryKey: selectedFlagSet ? queryKeys.flagsetFlags(selectedFlagSet) : (isDevMode ? queryKeys.localFlags : queryKeys.flagsConfig),
     queryFn: async () => {
       // If a flagset is selected, fetch from that flagset
       if (selectedFlagSet) {
@@ -72,7 +69,7 @@ export default function DashboardPage() {
 
   // Fetch flagsets
   const flagSetsQuery = useQuery({
-    queryKey: ['flagsets'],
+    queryKey: queryKeys.flagsets,
     queryFn: async () => {
       const res = await fetch('/api/flagsets');
       if (!res.ok) throw new Error('Failed to fetch flag sets');
@@ -84,61 +81,10 @@ export default function DashboardPage() {
 
   const selectedFlagSetName = flagSetsQuery.data?.find(fs => fs.id === selectedFlagSet)?.name;
 
-  // Type for flag with percentage rollout
-  type FlagWithRollout = {
-    disable?: boolean;
-    version?: string;
-    defaultRule?: {
-      variation?: string;
-      percentage?: Record<string, number>;
-    };
-  };
-
-  // Helper to check if flag uses percentage rollout
-  const isPercentageRollout = (flag: FlagWithRollout | null | undefined): boolean => {
-    if (!flag) return false;
-    return !!(flag.defaultRule?.percentage && Object.keys(flag.defaultRule.percentage).length > 0);
-  };
-
-  // Helper to determine if a flag is currently "on" based on defaultRule
-  const isFlagOn = (flag: FlagWithRollout | null | undefined): boolean => {
-    if (!flag) return false;
-    if (flag.disable) return false;
-
-    // For percentage rollout, check if "on" variations have any percentage
-    if (isPercentageRollout(flag)) {
-      const onVariations = ['enabled', 'on', 'true', 'yes', 'active'];
-      const percentage = flag.defaultRule?.percentage || {};
-      return Object.entries(percentage).some(
-        ([variation, pct]) => onVariations.includes(variation.toLowerCase()) && pct > 0
-      );
-    }
-
-    const defaultVariation = flag.defaultRule?.variation;
-    if (!defaultVariation) return false;
-    const onVariations = ['enabled', 'on', 'true', 'yes', 'active'];
-    return onVariations.includes(defaultVariation.toLowerCase());
-  };
-
-  // Helper to get percentage for rollout flags
-  const getOnPercentage = (flag: FlagWithRollout | null | undefined): number => {
-    if (!flag) return 0;
-    if (!isPercentageRollout(flag)) return isFlagOn(flag) ? 100 : 0;
-    const onVariations = ['enabled', 'on', 'true', 'yes', 'active'];
-    const percentage = flag.defaultRule?.percentage || {};
-    let totalOn = 0;
-    for (const [variation, pct] of Object.entries(percentage)) {
-      if (onVariations.includes(variation.toLowerCase())) {
-        totalOn += pct;
-      }
-    }
-    return totalOn;
-  };
-
-  const flags = (flagsQuery.data?.flags || {}) as Record<string, FlagWithRollout | null>;
+  const flags = (flagsQuery.data?.flags || {}) as Record<string, LocalFlagConfig | FlagConfiguration | null>;
 
   // Filter out null flags
-  const validFlags = Object.entries(flags).filter(([, flag]) => flag != null) as [string, FlagWithRollout][];
+  const validFlags = Object.entries(flags).filter(([, flag]) => flag != null) as [string, LocalFlagConfig | FlagConfiguration][];
 
   const flagCount = validFlags.length;
 

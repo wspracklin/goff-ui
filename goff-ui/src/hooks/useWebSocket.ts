@@ -6,6 +6,7 @@ import goffClient from '@/lib/api';
 import { DiffCache } from '@/lib/types';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query-keys';
 
 interface WebSocketMessage {
   type: 'flag_change' | 'heartbeat' | 'error';
@@ -49,8 +50,8 @@ export function useWebSocket() {
         addFlagUpdate(diffCache);
 
         // Invalidate relevant queries
-        queryClient.invalidateQueries({ queryKey: ['flags-config'] });
-        queryClient.invalidateQueries({ queryKey: ['local-flags'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.flagsConfig });
+        queryClient.invalidateQueries({ queryKey: queryKeys.localFlags });
         queryClient.invalidateQueries({ queryKey: ['flagset-flags'] });
 
         // Show notification

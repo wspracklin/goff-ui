@@ -156,6 +156,14 @@ export interface OFREPBulkEvaluateResponse {
   flags: OFREPEvaluateResponse[];
 }
 
+// Shared Types
+export interface FlagSet {
+  id: string;
+  name: string;
+  apiKeys?: string[];
+  isDefault: boolean;
+}
+
 // UI Specific Types
 export interface ConnectionConfig {
   proxyUrl: string;
